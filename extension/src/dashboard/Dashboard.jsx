@@ -438,7 +438,7 @@ export default function Dashboard() {
               {appSettings && (
                 <VoiceController 
                   settingsConfig={appSettings} 
-                  onSpeechInput={(transcript) => handleSendMessage(transcript)} 
+                  onSpeechInput={(transcript) => setInputValue(transcript)} 
                   isAssistantStreaming={isStreaming}
                 />
               )}

@@ -21,8 +21,8 @@ export default function useSpeechRecognition({ onResult, onError, onStateChange 
     const rec = new SpeechRecognition();
     recognitionRef.current = rec;
 
-    rec.continuous = false;
-    rec.interimResults = true; // Streaming results in real-time
+    rec.continuous = true; // Stay on until manually stopped
+    rec.interimResults = true; // Enable real-time transcript updates
     rec.lang = navigator.language || 'en-US'; // Dynamic language check to avoid loading errors
 
     rec.onstart = () => {
@@ -36,17 +36,21 @@ export default function useSpeechRecognition({ onResult, onError, onStateChange 
       let interimTranscript = '';
       let finalTranscript = '';
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+      // Loop from 0 to compile full cumulative transcript in continuous mode
+      for (let i = 0; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          finalTranscript += event.results[i][0].transcript + ' ';
         } else {
           interimTranscript += event.results[i][0].transcript;
         }
       }
 
-      const transcript = finalTranscript || interimTranscript;
-      if (callbacksRef.current.onResult && transcript) {
-        callbacksRef.current.onResult(transcript, event.results[event.results.length - 1].isFinal);
+      const activeTranscript = finalTranscript + interimTranscript;
+      if (activeTranscript.trim()) {
+        console.log('Speech recognized (realtime):', activeTranscript);
+        if (callbacksRef.current.onResult) {
+          callbacksRef.current.onResult(activeTranscript);
+        }
       }
     };
 
