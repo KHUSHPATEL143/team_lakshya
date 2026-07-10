@@ -3,23 +3,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg-primary: #fbf7ef;
-  --bg-secondary: #f4eadb;
-  --bg-tertiary: #eadcc8;
-  --border-color: rgba(92, 54, 31, 0.16);
+  --bg-primary: #212121;      /* ChatGPT Dark background */
+  --bg-secondary: #171717;    /* ChatGPT Dark sidebar background */
+  --bg-tertiary: #2f2f2f;     /* ChatGPT input/capsule background */
+  --border-color: rgba(255, 255, 255, 0.08);
   
-  --color-primary: #9a5529;
-  --color-secondary: #2f8f64;
-  --color-accent: #7c6047;
-  --color-danger: #b63b2e;
+  --color-primary: #10a37f;   /* ChatGPT brand green */
+  --color-secondary: #10b981;
+  --color-accent: #ab68ff;
+  --color-danger: #ef4444;
   
-  --text-primary: #24150d;
-  --text-secondary: #6d5848;
-  --text-muted: #9b8778;
+  --text-primary: #ececf1;
+  --text-secondary: #b4b4b4;
+  --text-muted: #676767;
   
-  --font-sans: 'Outfit', sans-serif;
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Fira Code', 'Courier New', Courier, monospace;
   
   --transition: all 0.2s ease;
 }
@@ -53,7 +53,7 @@ body {
 /* 2. Header Configuration */
 .sp-header {
   padding: 10px 14px;
-  background-color: rgba(251, 247, 239, 0.88);
+  background-color: rgba(23, 23, 23, 0.88);
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(12px);
   display: flex;
@@ -322,23 +322,26 @@ body {
 }
 
 .msg-content {
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
   font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
 }
 
 .row-ai .msg-content {
-  background-color: rgba(255, 250, 242, 0.82);
-  border: 1px solid var(--border-color);
+  background-color: transparent;
+  border: none;
   color: var(--text-primary);
+  padding: 4px 0;
 }
 
 .row-user .msg-content {
-  background-color: #eadcc8;
-  border: 1px solid rgba(154, 85, 41, 0.16);
+  background-color: var(--bg-tertiary);
+  border: none;
   color: var(--text-primary);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .msg-meta {
@@ -543,14 +546,14 @@ body {
 
 .sp-input-wrapper {
   position: relative;
-  background-color: #eadcc8;
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  box-shadow: var(--shadow-sm);
 }
 
 .sp-input-field {
@@ -568,14 +571,15 @@ body {
 }
 
 .sp-input-field::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  opacity: 0.6;
 }
 
 .sp-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid rgba(154, 85, 41, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
   padding-top: 8px;
   position: relative;
 }
@@ -606,22 +610,22 @@ body {
 
 .sp-plus-btn,
 .voice-btn {
-  background-color: rgba(255, 250, 242, 0.7);
+  background-color: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-color);
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .sp-plus-btn:hover:not(:disabled),
 .voice-btn:hover:not(:disabled),
 .sp-plus-btn.active {
   color: var(--color-primary);
-  background-color: #fffaf2;
-  border-color: rgba(154, 85, 41, 0.3);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .sp-plus-btn:disabled,
 .voice-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
@@ -630,14 +634,14 @@ body {
   left: 0;
   bottom: 46px;
   min-width: 162px;
-  background-color: #fffaf2;
+  background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 6px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  box-shadow: 0 14px 34px rgba(92, 54, 31, 0.16);
+  box-shadow: var(--shadow-lg);
   z-index: 20;
 }
 
@@ -672,18 +676,19 @@ body {
 }
 
 .sp-send-btn {
-  background-color: var(--color-primary);
+  background-color: var(--text-primary);
   border: none;
-  color: #fffaf2;
+  color: var(--bg-primary);
+  border-radius: 50% !important;
 }
 
-.sp-send-btn:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 8px 18px rgba(154, 85, 41, 0.2);
+.sp-send-btn:hover:not(:disabled) {
+  background-color: white;
+  transform: scale(1.05);
 }
 
 .sp-send-btn:disabled {
-  background-color: rgba(154, 85, 41, 0.08);
+  background-color: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: not-allowed;
   box-shadow: none;

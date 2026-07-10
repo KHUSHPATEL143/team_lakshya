@@ -3,29 +3,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg-primary: #0a0b10;
-  --bg-secondary: #12141c;
-  --bg-tertiary: #191c28;
-  --bg-glass: rgba(18, 20, 28, 0.7);
+  --bg-primary: #212121;      /* ChatGPT Dark background */
+  --bg-secondary: #171717;    /* ChatGPT Dark sidebar background */
+  --bg-tertiary: #2f2f2f;     /* ChatGPT input/capsule background */
+  --bg-glass: rgba(33, 33, 33, 0.75);
   --border-color: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(6, 182, 212, 0.15);
+  --border-glow: rgba(255, 255, 255, 0.12);
   
-  --color-primary: #06b6d4; /* Neon Cyan */
-  --color-secondary: #10b981; /* Neon Emerald */
-  --color-accent: #6366f1; /* Purple Indigo */
+  --color-primary: #10a37f;   /* ChatGPT official green brand color */
+  --color-secondary: #10b981; /* Emerald */
+  --color-accent: #ab68ff;    /* Purple Accent */
   --color-danger: #ef4444;
   
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --text-primary: #ececf1;
+  --text-secondary: #b4b4b4;
+  --text-muted: #676767;
   
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Fira Code', 'Courier New', Courier, monospace;
   
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.2);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.3);
+  --transition: all 0.2s ease-in-out;
 }
 
 * {
@@ -448,14 +448,16 @@ body {
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 32px;
   max-width: 800px;
   margin: 0 auto;
+  padding: 24px 0;
 }
 
 .message-row {
   display: flex;
-  gap: 14px;
+  gap: 16px;
+  padding: 8px 12px;
 }
 
 .row-user {
@@ -469,7 +471,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   color: var(--color-primary);
   flex-shrink: 0;
@@ -477,12 +479,12 @@ body {
 
 .row-user .msg-avatar {
   background-color: var(--color-primary);
-  color: var(--bg-primary);
+  color: white;
   border-color: var(--color-primary);
 }
 
 .msg-bubble {
-  max-width: calc(100% - 70px);
+  max-width: calc(100% - 60px);
   display: flex;
   flex-direction: column;
 }
@@ -492,22 +494,25 @@ body {
 }
 
 .msg-content {
-  padding: 14px 18px;
-  border-radius: 16px;
-  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
 .row-ai .msg-content {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background-color: transparent;
+  border: none;
   color: var(--text-primary);
+  padding: 4px 0;
 }
 
 .row-user .msg-content {
   background-color: var(--bg-tertiary);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: none;
   color: var(--text-primary);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .msg-meta {
@@ -697,19 +702,20 @@ body {
 }
 
 .input-wrapper {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 12px 16px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 26px;
+  padding: 14px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   transition: var(--transition);
+  box-shadow: var(--shadow-lg);
 }
 
 .input-wrapper:focus-within {
-  border-color: rgba(6, 182, 212, 0.4);
-  box-shadow: 0 0 16px rgba(6, 182, 212, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
 }
 
 .chat-textarea {
@@ -719,30 +725,31 @@ body {
   resize: none;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.6;
   width: 100%;
 }
 
 .chat-textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  opacity: 0.6;
 }
 
 .input-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
   padding-top: 8px;
 }
 
 .send-btn {
-  background-color: var(--color-primary);
+  background-color: var(--text-primary);
   border: none;
   color: var(--bg-primary);
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -750,18 +757,17 @@ body {
   transition: var(--transition);
 }
 
-.send-btn:hover {
+.send-btn:hover:not(:disabled) {
+  background-color: white;
   transform: scale(1.05);
-  filter: brightness(1.1);
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
 }
 
 .send-btn:disabled {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: not-allowed;
-  box-shadow: none;
   transform: none;
+  box-shadow: none;
 }
 
 /* 12. Voice Controller layout inside inputs */
