@@ -48,9 +48,12 @@ async function getLocalEmbedder() {
 }
 
 // Generate embeddings based on configuration
-async function generateEmbedding(text, config = {}) {
+// Generate embeddings based on configuration (polymorphic: supports single text string or batch array of strings)
+async function generateEmbedding(input, config = {}) {
   const { provider = 'local', apiKey = '', lmStudioUrl = 'http://localhost:1234/v1', model = '' } = config;
   const resolvedUrl = resolveUrl(lmStudioUrl);
+  const isBatch = Array.isArray(input);
+  const texts = isBatch ? input : [input];
 
   // 1. OpenAI / OpenRouter Embeddings
   if (provider === 'openrouter' && apiKey) {
@@ -62,14 +65,15 @@ async function generateEmbedding(text, config = {}) {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          input: text,
+          input: texts,
           model: 'openai/text-embedding-3-small' // Fixed: Always use a dedicated embedding model, not the chat model
         })
       });
       if (response.ok) {
         const result = await response.json();
-        if (result.data && result.data[0] && result.data[0].embedding) {
-          return result.data[0].embedding;
+        if (result.data && Array.isArray(result.data)) {
+          const embeddings = result.data.map(item => item.embedding);
+          return isBatch ? embeddings : embeddings[0];
         }
       }
       console.warn('OpenRouter embedding request failed, falling back to local embedder.');
@@ -86,14 +90,15 @@ async function generateEmbedding(text, config = {}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          input: text,
+          input: texts,
           model: 'local-model' // Fixed: Use generic local model, not the text LLM model
         })
       });
       if (response.ok) {
         const result = await response.json();
-        if (result.data && result.data[0] && result.data[0].embedding) {
-          return result.data[0].embedding;
+        if (result.data && Array.isArray(result.data)) {
+          const embeddings = result.data.map(item => item.embedding);
+          return isBatch ? embeddings : embeddings[0];
         }
       }
       console.warn('LM Studio embedding request failed, falling back to local embedder.');
@@ -104,8 +109,19 @@ async function generateEmbedding(text, config = {}) {
 
   // 3. Fallback to Local Transformers.js
   const extractor = await getLocalEmbedder();
-  const output = await extractor(text, { pooling: 'mean', normalize: true });
-  return Array.from(output.data);
+  const output = await extractor(texts, { pooling: 'mean', normalize: true });
+  
+  const batchSize = texts.length;
+  const embeddingDim = output.data.length / batchSize;
+  const embeddings = [];
+  
+  for (let i = 0; i < batchSize; i++) {
+    const start = i * embeddingDim;
+    const end = start + embeddingDim;
+    embeddings.push(Array.from(output.data.subarray(start, end)));
+  }
+  
+  return isBatch ? embeddings : embeddings[0];
 }
 
 // Retrieve or create collection in ChromaDB
@@ -132,23 +148,34 @@ const chromaService = {
     const metadatas = [];
     const documents = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const chunkId = `${metadata.source || 'doc'}_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+    const BATCH_SIZE = 16; // Process 16 chunks at a time to prevent heap memory exhaustion
+
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batchChunks = chunks.slice(i, i + BATCH_SIZE);
       
       try {
-        const embedding = await generateEmbedding(chunk, config);
-        ids.push(chunkId);
-        embeddings.push(embedding);
-        metadatas.push({
-          ...metadata,
-          chunkIndex: i,
-          totalChunks: chunks.length,
-          timestamp: new Date().toISOString()
-        });
-        documents.push(chunk);
+        const batchEmbeddings = await generateEmbedding(batchChunks, config);
+        
+        for (let j = 0; j < batchChunks.length; j++) {
+          const chunk = batchChunks[j];
+          const embedding = batchEmbeddings[j];
+          if (!embedding) continue;
+
+          const chunkIndex = i + j;
+          const chunkId = `${metadata.source || 'doc'}_${Date.now()}_${chunkIndex}_${Math.random().toString(36).substr(2, 5)}`;
+          
+          ids.push(chunkId);
+          embeddings.push(embedding);
+          metadatas.push({
+            ...metadata,
+            chunkIndex,
+            totalChunks: chunks.length,
+            timestamp: new Date().toISOString()
+          });
+          documents.push(chunk);
+        }
       } catch (err) {
-        console.error(`Failed to generate embedding for chunk ${i}:`, err);
+        console.error(`Failed to generate embeddings for batch starting at index ${i}:`, err);
       }
     }
 
