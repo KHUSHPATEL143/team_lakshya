@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import settings from '../utils/settings';
 import voice from '../utils/voice';
@@ -8,7 +8,7 @@ import SettingsModal from '../components/SettingsModal';
 import VoiceController from '../components/VoiceController';
 import { 
   Bot, Plus, Settings, MessageSquare, Trash2, Send, 
-  FileText, Server, AlertCircle, Sparkles, BookOpen, Camera, X 
+  FileText, Server, AlertCircle, Sparkles, BookOpen, Camera, X, Table, Paperclip, RefreshCw
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -25,11 +25,16 @@ export default function Dashboard() {
   // UI input states
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
-  const [pdfStatus, setPdfStatus] = useState('');
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [attachmentStatus, setAttachmentStatus] = useState('');
+  const [activeAttachment, setActiveAttachment] = useState(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [stopVoiceSignal, setStopVoiceSignal] = useState(0);
   const [imageInput, setImageInput] = useState(null);
   const [imageName, setImageName] = useState('');
+
+  const pdfInputRef = useRef(null);
+  const spreadsheetInputRef = useRef(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -110,6 +115,7 @@ export default function Dashboard() {
       setConversations(prev => [newConv, ...prev]);
       setActiveConvId(newConv.id);
       setMessages([]);
+      setActiveAttachment(null);
     } catch (e) {
       console.error('Failed to create new chat session:', e);
     }
@@ -120,6 +126,7 @@ export default function Dashboard() {
     if (isStreaming) return;
     voice.stopSpeaking();
     setActiveConvId(id);
+    setActiveAttachment(null);
     loadMessages(id);
   };
 
@@ -286,68 +293,81 @@ export default function Dashboard() {
     }
   };
 
-  // 6. Handle PDF file uploads
-  const handlePdfUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !backendOnline) return;
+  // 6. Handle Unified File Ingestion (PDF / Spreadsheets)
+  const loadFileIntoChat = async ({ file, kind, parseFile, promptLabel, extensionCheck }) => {
+    if (!file || !backendOnline || uploadingFile || !appSettings) return;
 
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!isPdf) {
-      alert('Only PDF files are supported.');
+    if (!extensionCheck(file)) {
+      setAttachmentStatus(`Choose a ${kind} file.`);
+      setTimeout(() => setAttachmentStatus(''), 3000);
       return;
     }
 
-    setUploadingPdf(true);
-    const storeInDb = appSettings.savePdfToDb || false;
-    setPdfStatus(storeInDb ? 'Parsing and indexing PDF in ChromaDB...' : 'Parsing PDF text for this session...');
-    
+    setUploadingFile(true);
+    const storeInDb = appSettings?.savePdfToDb || false;
+    setAttachmentStatus(`Loading ${kind}...`);
+
     try {
-      const result = await api.ingestPdf(file, appSettings, storeInDb);
-      
-      let uploadNotification = '';
-      if (storeInDb) {
-        uploadNotification = `[File Ingested]: "${file.name}" has been processed and stored in ChromaDB (${result.pages} pages, ${result.chunksAdded} text segments). You can now ask questions about its content!`;
-        setPdfStatus(`PDF Index completed! Added ${result.chunksAdded} chunks to ChromaDB.`);
-      } else {
-        uploadNotification = `[File Loaded]: "${file.name}" has been parsed and loaded into this session (${result.pages} pages). It is NOT saved in the database. You can now chat about it!`;
-        setPdfStatus(`PDF parsed successfully! Loaded into active session.`);
-      }
-      
       let targetConvId = activeConvId;
       if (!targetConvId) {
-        const newConv = await api.createConversation(`Chat: ${file.name.substring(0, 15)}`, appSettings.model);
+        const newConv = await api.createConversation(`${promptLabel}: ${file.name.substring(0, 18)}`, appSettings?.model);
         targetConvId = newConv.id;
         setActiveConvId(targetConvId);
-        await loadConversations(appSettings);
+        setConversations(prev => [newConv, ...prev]);
+        setMessages([]);
       }
 
-      // Save document text in Chrome local storage if not saving in ChromaDB
+      const result = await parseFile(file, appSettings, storeInDb);
+
       if (!storeInDb && result.text) {
-        const fileContextObj = { title: file.name, text: result.text };
         await new Promise((resolve) => {
-          chrome.storage.local.set({ [`file_context_${targetConvId}`]: fileContextObj }, resolve);
+          chrome.storage.local.set({
+            [`file_context_${targetConvId}`]: { title: file.name, text: result.text }
+          }, resolve);
         });
       }
 
-      const notifyMsg = await api.saveMessage(targetConvId, 'assistant', uploadNotification);
-      setMessages(prev => {
-        if (!activeConvId) {
-          return [notifyMsg];
-        }
-        return [...prev, notifyMsg];
+      const detailText = kind === 'spreadsheet'
+        ? `${result.sheets || 1} sheet(s), ${result.rows || 0} rows`
+        : `${result.pages || 1} page(s)`;
+        
+      setActiveAttachment({
+        kind: promptLabel,
+        name: file.name,
+        detail: detailText
       });
-
-      setTimeout(() => {
-        setPdfStatus('');
-        setUploadingPdf(false);
-      }, 4000);
-
-    } catch (err) {
-      console.error(err);
-      setPdfStatus('Failed to ingest PDF: ' + err.message);
-      setTimeout(() => setPdfStatus(''), 4000);
-      setUploadingPdf(false);
+      await loadConversations(appSettings);
+      setInputValue(current => current || `Summarize this ${kind}.`);
+      setAttachmentStatus(`${promptLabel} ready`);
+    } catch (error) {
+      console.error(error);
+      setAttachmentStatus(`Error: ${error.message || 'failed'}`);
+    } finally {
+      setTimeout(() => setAttachmentStatus(''), 4000);
+      setUploadingFile(false);
     }
+  };
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    await loadFileIntoChat({
+      file,
+      kind: 'PDF',
+      parseFile: api.ingestPdf,
+      promptLabel: 'PDF',
+      extensionCheck: (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    });
+  };
+
+  const handleSpreadsheetUpload = async (e) => {
+    const file = e.target.files[0];
+    await loadFileIntoChat({
+      file,
+      kind: 'spreadsheet',
+      parseFile: api.ingestSpreadsheet,
+      promptLabel: 'Spreadsheet',
+      extensionCheck: (f) => /\.(xlsx|csv|tsv)$/i.test(f.name)
+    });
   };
 
   // Model selection sync
@@ -421,6 +441,23 @@ export default function Dashboard() {
           </div>
 
           <div className="header-right">
+            {/* Read Aloud speaker toggle */}
+            {appSettings && (
+              <button 
+                onClick={async () => {
+                  const newVal = !appSettings.audioEnabled;
+                  setAppSettings(prev => ({ ...prev, audioEnabled: newVal }));
+                  await settings.set('audioEnabled', newVal);
+                }}
+                className="input-action-btn"
+                style={{ padding: '6px 10px', height: '34px', background: appSettings.audioEnabled ? 'rgba(16, 163, 127, 0.15)' : 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: appSettings.audioEnabled ? 'var(--color-primary)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '500', borderRadius: '10px', cursor: 'pointer' }}
+                title="Toggle Auto Read Aloud"
+              >
+                <BookOpen size={12} />
+                <span>TTS: {appSettings.audioEnabled ? 'ON' : 'OFF'}</span>
+              </button>
+            )}
+
             {/* Model select */}
             {appSettings && (
               <ModelSelector 
@@ -446,48 +483,31 @@ export default function Dashboard() {
           settingsConfig={appSettings || {}} 
         />
 
-        {/* Loading PDF bar */}
-        {uploadingPdf && (
-          <div className="pdf-upload-banner">
-            <FileText className="spin" size={16} />
-            <span>{pdfStatus}</span>
+        {/* Loading File banner */}
+        {attachmentStatus && (
+          <div className="pdf-upload-banner" style={{ margin: '12px auto', maxWidth: '800px', width: 'calc(100% - 48px)', padding: '10px 16px', borderRadius: '10px', backgroundColor: 'rgba(16, 163, 127, 0.08)', border: '1px solid rgba(16, 163, 127, 0.2)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-primary)' }}>
+            {uploadingFile ? <RefreshCw className="spin" size={14} /> : <Paperclip size={14} />}
+            <span>{attachmentStatus}</span>
           </div>
         )}
 
         {/* Input Bar panel */}
         <div className="input-panel">
-          <div className="input-actions-bar">
-            {/* PDF Upload Button */}
-            <label className="input-action-btn pdf-upload-label" title="Upload and parse PDF document">
-              <input 
-                type="file" 
-                accept=".pdf" 
-                onChange={handlePdfUpload}
-                disabled={uploadingPdf || !backendOnline} 
-                style={{ display: 'none' }}
-              />
-              <FileText size={18} />
-              <span>Add PDF</span>
-            </label>
-
-            {/* Read Aloud Toggle */}
-            {appSettings && (
-              <button 
-                onClick={async () => {
-                  const newVal = !appSettings.audioEnabled;
-                  setAppSettings(prev => ({ ...prev, audioEnabled: newVal }));
-                  await settings.set('audioEnabled', newVal);
-                }}
-                className={`input-action-btn ${appSettings.audioEnabled ? 'active' : ''}`}
-                title="Toggle Auto Read Aloud"
-              >
-                <BookOpen size={18} />
-                <span>Read Aloud: {appSettings.audioEnabled ? 'ON' : 'OFF'}</span>
-              </button>
+          <div className="input-wrapper" style={{ position: 'relative' }}>
+            {/* Active File Attachment Pill */}
+            {activeAttachment && (
+              <div className="sp-active-attachment" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '8px', width: 'fit-content' }}>
+                {activeAttachment.kind === 'PDF' ? <FileText size={14} style={{ color: 'var(--color-primary)' }} /> : <Table size={14} style={{ color: 'var(--color-secondary)' }} />}
+                <div style={{ display: 'flex', flexDirection: 'column', fontSize: '11px', textAlign: 'left' }}>
+                  <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>{activeAttachment.name}</strong>
+                  <span style={{ color: 'var(--text-secondary)' }}>{activeAttachment.kind} loaded · {activeAttachment.detail}</span>
+                </div>
+                <button onClick={() => setActiveAttachment(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '2px' }} title="Remove file">
+                  <X size={12} />
+                </button>
+              </div>
             )}
-          </div>
 
-          <div className="input-wrapper">
             {imageInput && (
               <div className="sp-image-preview-container">
                 <img src={imageInput} alt="Preview" className="sp-image-preview-thumbnail" />
@@ -515,35 +535,71 @@ export default function Dashboard() {
             />
 
             <div className="input-controls">
-              {appSettings && (
-                <VoiceController 
-                settingsConfig={appSettings} 
-                onSpeechInput={(transcript) => setInputValue(transcript)} 
-                isAssistantStreaming={isStreaming}
-                stopSignal={stopVoiceSignal}
-              />
-              )}
-              
-              <button
-                onClick={() => document.getElementById('dashboard-image-file-input').click()}
-                disabled={isStreaming || !backendOnline}
-                className="input-action-btn image-upload-btn-icon"
-                style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                title="Add Image"
-              >
-                <Camera size={14} />
-              </button>
-              <input
-                type="file"
-                id="dashboard-image-file-input"
-                accept="image/*"
-                onChange={handleImageSelect}
-                style={{ display: 'none' }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* ChatGPT-style Unified Plus Attachment Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setAttachmentMenuOpen(prev => !prev)}
+                  disabled={uploadingFile || !backendOnline || !appSettings}
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'var(--transition)' }}
+                  title="Add file or image"
+                >
+                  <Plus size={14} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {attachmentMenuOpen && (
+                  <div className="dashboard-attachment-menu" style={{ position: 'absolute', bottom: '46px', left: '16px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '14px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px', boxShadow: 'var(--shadow-lg)', zIndex: 30 }}>
+                    <button type="button" onClick={() => { pdfInputRef.current?.click(); setAttachmentMenuOpen(false); }} style={{ border: 0, borderRadius: '10px', padding: '8px 12px', background: 'transparent', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                      <FileText size={14} style={{ color: 'var(--color-primary)' }} />
+                      <span>PDF Document</span>
+                    </button>
+                    <button type="button" onClick={() => { spreadsheetInputRef.current?.click(); setAttachmentMenuOpen(false); }} style={{ border: 0, borderRadius: '10px', padding: '8px 12px', background: 'transparent', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                      <Table size={14} style={{ color: 'var(--color-secondary)' }} />
+                      <span>Excel / CSV</span>
+                    </button>
+                    <button type="button" onClick={() => { document.getElementById('dashboard-image-file-input').click(); setAttachmentMenuOpen(false); }} style={{ border: 0, borderRadius: '10px', padding: '8px 12px', background: 'transparent', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                      <Camera size={14} style={{ color: 'var(--color-accent)' }} />
+                      <span>Upload Image</span>
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handlePdfUpload}
+                  style={{ display: 'none' }}
+                />
+                <input
+                  ref={spreadsheetInputRef}
+                  type="file"
+                  accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"
+                  onChange={handleSpreadsheetUpload}
+                  style={{ display: 'none' }}
+                />
+                <input
+                  type="file"
+                  id="dashboard-image-file-input"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                />
+
+                {appSettings && (
+                  <VoiceController 
+                    settingsConfig={appSettings} 
+                    onSpeechInput={(transcript) => setInputValue(transcript)} 
+                    isAssistantStreaming={isStreaming}
+                    stopSignal={stopVoiceSignal}
+                  />
+                )}
+              </div>
 
               <button
                 onClick={() => handleSendMessage()}
-                disabled={(!inputValue.trim() && !imageInput) || isStreaming || !backendOnline}
+                disabled={(!inputValue.trim() && !imageInput && !activeAttachment) || isStreaming || !backendOnline}
                 className="send-btn"
                 title="Send message"
               >
