@@ -8,7 +8,7 @@ import SettingsModal from '../components/SettingsModal';
 import VoiceController from '../components/VoiceController';
 import { 
   Bot, Plus, Settings, MessageSquare, Trash2, Send, 
-  FileText, Server, AlertCircle, Sparkles, BookOpen 
+  FileText, Server, AlertCircle, Sparkles, BookOpen, Camera, X 
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -28,6 +28,26 @@ export default function Dashboard() {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [pdfStatus, setPdfStatus] = useState('');
   const [stopVoiceSignal, setStopVoiceSignal] = useState(0);
+  const [imageInput, setImageInput] = useState(null);
+  const [imageName, setImageName] = useState('');
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImageInput(event.target.result); // Base64 data URL
+      setImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
+  };
 
   // 1. Initial Load settings and connect to backend
   useEffect(() => {
@@ -178,11 +198,21 @@ export default function Dashboard() {
         setConversations(prev => [newConv, ...prev]);
       }
 
-      // Step B: Save user message in local DB
-      const userMsg = await api.saveMessage(currentConvId, 'user', text);
-      const updatedMessages = [...messages, userMsg];
+      // Step B: Save user message in local DB (with placeholder image text if present)
+      const dbText = imageInput ? `[Uploaded Image: ${imageName}] ${text}` : text;
+      const userMsg = await api.saveMessage(currentConvId, 'user', dbText);
+      
+      // Inject image locally for rendering bubble thumbnail in session
+      const displayMsg = { ...userMsg, content: text, image: imageInput };
+      
+      const updatedMessages = [...messages, displayMsg];
       setMessages(updatedMessages);
       setIsStreaming(true);
+
+      // Capture active image context and clear local states
+      const activeImage = imageInput;
+      setImageInput(null);
+      setImageName('');
 
       // Refresh list to show updated title if it was first message
       await loadConversations(appSettings);
@@ -210,6 +240,7 @@ export default function Dashboard() {
         appSettings,
         activeTabContext,
         fileContext,
+        activeImage,
         (chunk) => {
           assistantResponse += chunk;
           // Render chunk in UI dynamically
@@ -457,6 +488,17 @@ export default function Dashboard() {
           </div>
 
           <div className="input-wrapper">
+            {imageInput && (
+              <div className="sp-image-preview-container">
+                <img src={imageInput} alt="Preview" className="sp-image-preview-thumbnail" />
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {imageName}
+                </span>
+                <button onClick={() => { setImageInput(null); setImageName(''); }} className="sp-image-preview-remove" title="Remove image">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -483,8 +525,25 @@ export default function Dashboard() {
               )}
               
               <button
+                onClick={() => document.getElementById('dashboard-image-file-input').click()}
+                disabled={isStreaming || !backendOnline}
+                className="input-action-btn image-upload-btn-icon"
+                style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                title="Add Image"
+              >
+                <Camera size={14} />
+              </button>
+              <input
+                type="file"
+                id="dashboard-image-file-input"
+                accept="image/*"
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+              />
+
+              <button
                 onClick={() => handleSendMessage()}
-                disabled={!inputValue.trim() || isStreaming || !backendOnline}
+                disabled={(!inputValue.trim() && !imageInput) || isStreaming || !backendOnline}
                 className="send-btn"
                 title="Send message"
               >

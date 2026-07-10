@@ -17,7 +17,7 @@ const aiController = {
 
   // Perform streaming completion with vector DB context injection (RAG) and/or active file context
   async chat(req, res) {
-    const { messages, config = {}, activeTabContext = null, fileContext = null } = req.body;
+    const { messages, config = {}, activeTabContext = null, fileContext = null, image = null } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'messages array is required' });
@@ -79,6 +79,28 @@ Refer primarily to this document context to answer questions about the file.
             console.log(`Injected ${contextChunks.length} matching context chunks into LLM prompt.`);
           } else {
             console.log('RAG Enabled but no matching context was found in ChromaDB.');
+          }
+        }
+      }
+
+      // 3. Inject image attachment context if available (multimodal input for vision models)
+      if (image) {
+        console.log('Multimodal query: injecting image Base64 data url into last user message.');
+        const userMessages = messages.filter(m => m.role === 'user');
+        const lastUserMessage = userMessages[userMessages.length - 1];
+        
+        if (lastUserMessage) {
+          if (Array.isArray(lastUserMessage.content)) {
+            lastUserMessage.content.push({
+              type: 'image_url',
+              image_url: { url: image }
+            });
+          } else {
+            const lastMessageText = lastUserMessage.content;
+            lastUserMessage.content = [
+              { type: 'text', text: lastMessageText || 'Describe this image' },
+              { type: 'image_url', image_url: { url: image } }
+            ];
           }
         }
       }

@@ -221,6 +221,11 @@ export default function ChatWindow({ messages, isStreaming, settingsConfig }) {
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className="msg-bubble">
+                {msg.image && (
+                  <div className="msg-bubble-image-container">
+                    <img src={msg.image} alt="Uploaded attachment" className="msg-bubble-image" />
+                  </div>
+                )}
                 <div 
                   className="msg-content"
                   dangerouslySetInnerHTML={{ __html: parseMarkdown(msg.content) }}

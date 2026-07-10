@@ -1112,3 +1112,65 @@ body {
   background-color: rgba(255, 255, 255, 0.02);
 }
 
+/* Multimodal Image Bubbles & Previews */
+.msg-bubble-image-container {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.msg-bubble-image {
+  max-width: 100%;
+  max-height: 220px;
+  display: block;
+  object-fit: contain;
+}
+
+.sp-image-preview-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  width: fit-content;
+  position: relative;
+}
+
+.sp-image-preview-thumbnail {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.sp-image-preview-remove {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  transition: var(--transition);
+}
+
+.sp-image-preview-remove:hover {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}

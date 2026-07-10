@@ -8,7 +8,7 @@ import SettingsModal from '../components/SettingsModal';
 import VoiceController from '../components/VoiceController';
 import { 
   Bot, Plus, Settings, MessageSquare, Send, 
-  Sparkles, RefreshCw, BookOpen, Globe, X, FileText, Table, Paperclip 
+  Sparkles, RefreshCw, BookOpen, Globe, X, FileText, Table, Paperclip, Camera 
 } from 'lucide-react';
 
 export default function SidePanel() {
@@ -285,7 +285,7 @@ export default function SidePanel() {
   // 3. Send Message
   const handleSendMessage = async (textToSend) => {
     const text = textToSend || inputValue;
-    if (!text.trim() || isStreaming || !backendOnline) return;
+    if ((!text.trim() && !imageInput) || isStreaming || !backendOnline) return;
 
     setInputValue('');
     setAttachmentMenuOpen(false);
@@ -327,10 +327,21 @@ export default function SidePanel() {
         setConversations(prev => [newConv, ...prev]);
       }
 
-      const userMsg = await api.saveMessage(currentConvId, 'user', text);
-      const updatedMessages = [...messages, userMsg];
+      // Step B: Save user message in local DB (with placeholder image text if present)
+      const dbText = imageInput ? `[Uploaded Image: ${imageName}] ${text}` : text;
+      const userMsg = await api.saveMessage(currentConvId, 'user', dbText);
+      
+      // Inject image locally for rendering bubble thumbnail in session
+      const displayMsg = { ...userMsg, content: text, image: imageInput };
+
+      const updatedMessages = [...messages, displayMsg];
       setMessages(updatedMessages);
       setIsStreaming(true);
+
+      // Capture active image context and clear local states
+      const activeImage = imageInput;
+      setImageInput(null);
+      setImageName('');
 
       // Reload list to sync title
       await loadConversations(appSettings);
@@ -357,6 +368,7 @@ export default function SidePanel() {
         appSettings,
         activeTabContext,
         fileContext,
+        activeImage,
         (chunk) => {
           assistantResponse += chunk;
           setMessages(prev => {
@@ -528,6 +540,17 @@ export default function SidePanel() {
               </div>
             </div>
           )}
+          {imageInput && (
+            <div className="sp-image-preview-container">
+              <img src={imageInput} alt="Preview" className="sp-image-preview-thumbnail" />
+              <span style={{ fontSize: '10px', color: 'var(--text-secondary)', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {imageName}
+              </span>
+              <button onClick={() => { setImageInput(null); setImageName(''); }} className="sp-image-preview-remove" title="Remove image">
+                <X size={10} />
+              </button>
+            </div>
+          )}
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -579,6 +602,23 @@ export default function SidePanel() {
                 onChange={handleSpreadsheetUpload}
                 className="sp-hidden-file"
               />
+              <button
+                type="button"
+                onClick={() => document.getElementById('sp-image-file-input').click()}
+                disabled={isStreaming || !backendOnline}
+                className="sp-plus-btn image-upload-btn-icon"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minWidth: '28px' }}
+                title="Add Image"
+              >
+                <Camera size={14} />
+              </button>
+              <input
+                type="file"
+                id="sp-image-file-input"
+                accept="image/*"
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+              />
               {appSettings && (
                 <VoiceController 
                   settingsConfig={appSettings} 
@@ -590,7 +630,7 @@ export default function SidePanel() {
             </div>
             <button
               onClick={() => handleSendMessage()}
-              disabled={!inputValue.trim() || isStreaming || !backendOnline}
+              disabled={(!inputValue.trim() && !imageInput) || isStreaming || !backendOnline}
               className="sp-send-btn"
             >
               <Send size={14} />
