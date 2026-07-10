@@ -185,6 +185,21 @@ export default function Dashboard() {
       // Refresh list to show updated title if it was first message
       await loadConversations(appSettings);
 
+      // Retrieve file/document context from Chrome local storage if available
+      let fileContext = null;
+      if (currentConvId) {
+        try {
+          const stored = await new Promise((resolve) => {
+            chrome.storage.local.get(`file_context_${currentConvId}`, resolve);
+          });
+          if (stored && stored[`file_context_${currentConvId}`]) {
+            fileContext = stored[`file_context_${currentConvId}`];
+          }
+        } catch (err) {
+          console.warn('Could not read session file context:', err);
+        }
+      }
+
       // Step C: Execute streaming chat completion
       let assistantResponse = '';
       
@@ -192,6 +207,7 @@ export default function Dashboard() {
         updatedMessages.map(m => ({ role: m.role, content: m.content })),
         appSettings,
         activeTabContext,
+        fileContext,
         (chunk) => {
           assistantResponse += chunk;
           // Render chunk in UI dynamically
@@ -248,25 +264,44 @@ export default function Dashboard() {
     }
 
     setUploadingPdf(true);
-    setPdfStatus('Parsing and indexing PDF...');
+    const storeInDb = appSettings.savePdfToDb || false;
+    setPdfStatus(storeInDb ? 'Parsing and indexing PDF in ChromaDB...' : 'Parsing PDF text for this session...');
     
     try {
-      const result = await api.ingestPdf(file, appSettings);
-      setPdfStatus(`PDF Index completed! Added ${result.chunksAdded} chunks to ChromaDB.`);
+      const result = await api.ingestPdf(file, appSettings, storeInDb);
       
-      // Inject alert message in current chat
-      const uploadNotification = `[File Ingested]: "${file.name}" has been processed and stored in ChromaDB (${result.pages} pages, ${result.chunksAdded} text segments). You can now ask questions about its content!`;
-      
-      if (activeConvId) {
-        const notifyMsg = await api.saveMessage(activeConvId, 'assistant', uploadNotification);
-        setMessages(prev => [...prev, notifyMsg]);
+      let uploadNotification = '';
+      if (storeInDb) {
+        uploadNotification = `[File Ingested]: "${file.name}" has been processed and stored in ChromaDB (${result.pages} pages, ${result.chunksAdded} text segments). You can now ask questions about its content!`;
+        setPdfStatus(`PDF Index completed! Added ${result.chunksAdded} chunks to ChromaDB.`);
       } else {
-        const newConv = await api.createConversation(`Ingested PDF: ${file.name.substring(0, 15)}`, appSettings.model);
-        setActiveConvId(newConv.id);
-        const notifyMsg = await api.saveMessage(newConv.id, 'assistant', uploadNotification);
-        setMessages([notifyMsg]);
+        uploadNotification = `[File Loaded]: "${file.name}" has been parsed and loaded into this session (${result.pages} pages). It is NOT saved in the database. You can now chat about it!`;
+        setPdfStatus(`PDF parsed successfully! Loaded into active session.`);
+      }
+      
+      let targetConvId = activeConvId;
+      if (!targetConvId) {
+        const newConv = await api.createConversation(`Chat: ${file.name.substring(0, 15)}`, appSettings.model);
+        targetConvId = newConv.id;
+        setActiveConvId(targetConvId);
         await loadConversations(appSettings);
       }
+
+      // Save document text in Chrome local storage if not saving in ChromaDB
+      if (!storeInDb && result.text) {
+        const fileContextObj = { title: file.name, text: result.text };
+        await new Promise((resolve) => {
+          chrome.storage.local.set({ [`file_context_${targetConvId}`]: fileContextObj }, resolve);
+        });
+      }
+
+      const notifyMsg = await api.saveMessage(targetConvId, 'assistant', uploadNotification);
+      setMessages(prev => {
+        if (!activeConvId) {
+          return [notifyMsg];
+        }
+        return [...prev, notifyMsg];
+      });
 
       setTimeout(() => {
         setPdfStatus('');

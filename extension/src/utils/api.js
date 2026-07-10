@@ -77,12 +77,12 @@ const api = {
     return res.json();
   },
 
-  async ingestPdf(file, config = {}) {
+  async ingestPdf(file, config = {}, storeInDb = false) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('config', JSON.stringify(config));
 
-    const res = await fetch(`${BACKEND_URL}/api/ingest/pdf`, {
+    const res = await fetch(`${BACKEND_URL}/api/ingest/pdf?store=${storeInDb}`, {
       method: 'POST',
       body: formData
     });
@@ -104,12 +104,12 @@ const api = {
   },
 
   // --- Stream Chat Response ---
-  async chatStream(messages, config = {}, activeTabContext = null, onChunk, onDone, onError) {
+  async chatStream(messages, config = {}, activeTabContext = null, fileContext = null, onChunk, onDone, onError) {
     try {
       const res = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, config, activeTabContext })
+        body: JSON.stringify({ messages, config, activeTabContext, fileContext })
       });
 
       if (!res.ok) {

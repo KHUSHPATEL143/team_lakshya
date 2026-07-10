@@ -8,6 +8,7 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
   const [lmStudioUrl, setLmStudioUrl] = useState(currentSettings.lmStudioUrl);
   const [systemPrompt, setSystemPrompt] = useState(currentSettings.systemPrompt);
   const [ragEnabled, setRagEnabled] = useState(currentSettings.ragEnabled);
+  const [savePdfToDb, setSavePdfToDb] = useState(currentSettings.savePdfToDb || false);
   const [useExternalVoice, setUseExternalVoice] = useState(currentSettings.useExternalVoice);
   const [voiceName, setVoiceName] = useState(currentSettings.voiceName);
   const [voiceRate, setVoiceRate] = useState(currentSettings.voiceRate);
@@ -22,6 +23,7 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
       lmStudioUrl,
       systemPrompt,
       ragEnabled,
+      savePdfToDb,
       useExternalVoice,
       voiceName,
       voiceRate
@@ -132,6 +134,17 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
                 />
                 <span className="checkmark"></span>
                 Enable Semantic Vector Context (RAG)
+              </label>
+            </div>
+            <div className="form-checkbox-row">
+              <label className="checkbox-container">
+                <input 
+                  type="checkbox"
+                  checked={savePdfToDb}
+                  onChange={(e) => setSavePdfToDb(e.target.checked)}
+                />
+                <span className="checkmark"></span>
+                Save uploaded PDFs to Database (RAG)
               </label>
             </div>
             <div className="vector-db-actions">

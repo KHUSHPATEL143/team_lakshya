@@ -10,7 +10,8 @@ const DEFAULT_SETTINGS = {
   audioEnabled: false,
   useExternalVoice: false,
   voiceName: 'alloy',
-  voiceRate: 1.0
+  voiceRate: 1.0,
+  savePdfToDb: false
 };
 
 const settings = {

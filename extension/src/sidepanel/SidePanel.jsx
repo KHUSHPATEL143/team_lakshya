@@ -246,12 +246,28 @@ export default function SidePanel() {
       // Reload list to sync title
       await loadConversations(appSettings);
 
+      // Retrieve file/document context from Chrome local storage if available
+      let fileContext = null;
+      if (currentConvId) {
+        try {
+          const stored = await new Promise((resolve) => {
+            chrome.storage.local.get(`file_context_${currentConvId}`, resolve);
+          });
+          if (stored && stored[`file_context_${currentConvId}`]) {
+            fileContext = stored[`file_context_${currentConvId}`];
+          }
+        } catch (err) {
+          console.warn('Could not read session file context:', err);
+        }
+      }
+
       let assistantResponse = '';
       
       await api.chatStream(
         updatedMessages.map(m => ({ role: m.role, content: m.content })),
         appSettings,
         activeTabContext,
+        fileContext,
         (chunk) => {
           assistantResponse += chunk;
           setMessages(prev => {

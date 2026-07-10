@@ -15,9 +15,9 @@ const aiController = {
     }
   },
 
-  // Perform streaming completion with vector DB context injection (RAG)
+  // Perform streaming completion with vector DB context injection (RAG) and/or active file context
   async chat(req, res) {
-    const { messages, config = {}, activeTabContext = null } = req.body;
+    const { messages, config = {}, activeTabContext = null, fileContext = null } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'messages array is required' });
@@ -26,7 +26,7 @@ const aiController = {
     try {
       let systemPrompt = config.systemPrompt || 'You are LAKSHYA, an intelligent AI Browser Companion. Assist the user with page reading, text summarization, explanation, and natural conversations.';
       
-      // Inject current active webpage context implicitly if available
+      // 1. Inject active webpage context if available
       if (activeTabContext && activeTabContext.url) {
         console.log(`Injecting active page context: "${activeTabContext.title}" (${activeTabContext.url})`);
         systemPrompt += `\n\n[CURRENT ACTIVE WEBPAGE CONTEXT]
@@ -40,6 +40,18 @@ ${activeTabContext.text || '(No text content extracted)'}
 """
 Rely on this active page context to answer queries referring to "this page", "what I am seeing", "this website", "this content", "summarize", etc.
 [END OF CURRENT ACTIVE WEBPAGE CONTEXT]`;
+      }
+      
+      // 2. Inject active document file context if available (Memory / Session mode)
+      if (fileContext && fileContext.text) {
+        console.log(`Injecting session file context: "${fileContext.title || 'Uploaded Document'}" (${fileContext.text.length} chars)`);
+        systemPrompt += `\n\n[UPLOADED DOCUMENT CONTEXT]
+You have access to the contents of the user's uploaded document "${fileContext.title || 'document'}":
+"""
+${fileContext.text}
+"""
+Refer primarily to this document context to answer questions about the file.
+[END OF UPLOADED DOCUMENT CONTEXT]`;
       }
       
       // Inject context from Vector DB if RAG is enabled

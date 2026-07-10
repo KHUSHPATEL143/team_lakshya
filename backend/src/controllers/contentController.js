@@ -43,23 +43,32 @@ const contentController = {
         }
       }
 
+      // Check if we should store the document in ChromaDB (RAG)
+      const storeInDb = req.query.store !== 'false' && req.body.store !== 'false';
+
       console.log(`Parsing uploaded PDF: ${req.file.originalname}`);
       const pdfData = await pdfService.parsePdf(req.file.buffer);
       
-      const metadata = {
-        source: 'pdf',
-        title: req.file.originalname,
-        pages: pdfData.numpages
-      };
-
-      console.log(`PDF Parsed. Exracted ${pdfData.text.length} characters. Sending to Chroma...`);
-      const result = await chromaService.addDocument(pdfData.text, metadata, 'lakshya_knowledge', config);
+      let chunksAdded = 0;
+      if (storeInDb) {
+        const metadata = {
+          source: 'pdf',
+          title: req.file.originalname,
+          pages: pdfData.numpages
+        };
+        console.log(`PDF Parsed. Exracted ${pdfData.text.length} characters. Sending to Chroma...`);
+        const result = await chromaService.addDocument(pdfData.text, metadata, 'lakshya_knowledge', config);
+        chunksAdded = result.chunksAdded;
+      } else {
+        console.log(`PDF Parsed (${pdfData.text.length} characters). Skipping ChromaDB index storage as requested.`);
+      }
 
       return res.json({
         success: true,
         pages: pdfData.numpages,
         characters: pdfData.text.length,
-        chunksAdded: result.chunksAdded
+        chunksAdded: chunksAdded,
+        text: storeInDb ? undefined : pdfData.text // Only return raw text if we did NOT store it in the database
       });
     } catch (error) {
       console.error('PDF ingestion failed:', error);
