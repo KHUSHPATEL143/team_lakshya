@@ -79,7 +79,7 @@ async function generateEmbedding(text, config = {}) {
   }
 
   // 2. LM Studio Embeddings
-  if (provider === 'lmstudio') {
+  if (provider === 'local' || provider === 'lmstudio') {
     try {
       const url = `${resolvedUrl.replace(/\/$/, '')}/embeddings`;
       const response = await fetch(url, {
@@ -160,9 +160,10 @@ const chromaService = {
         documents
       });
       console.log(`Added ${ids.length} chunks to Chroma collection: ${collectionName}`);
+      return { success: true, chunksAdded: ids.length };
     }
 
-    return { success: true, chunksAdded: ids.length };
+    throw new Error('Failed to generate embeddings for any document chunks. Please check if your LM Studio local server is running and embeddings are enabled, or if your OpenRouter cloud connection is active.');
   },
 
   // Query database for semantically similar documents
