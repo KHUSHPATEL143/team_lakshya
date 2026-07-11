@@ -12,6 +12,7 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
   const [useExternalVoice, setUseExternalVoice] = useState(currentSettings.useExternalVoice);
   const [voiceName, setVoiceName] = useState(currentSettings.voiceName);
   const [voiceRate, setVoiceRate] = useState(currentSettings.voiceRate);
+  const [assemblyApiKey, setAssemblyApiKey] = useState(currentSettings.assemblyApiKey || '');
 
   const [clearingDb, setClearingDb] = useState(false);
   const [clearSuccess, setClearSuccess] = useState(false);
@@ -26,7 +27,8 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
       savePdfToDb,
       useExternalVoice,
       voiceName,
-      voiceRate
+      voiceRate,
+      assemblyApiKey
     });
     onClose();
   };
@@ -219,6 +221,26 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
                 onChange={(e) => setVoiceRate(parseFloat(e.target.value))}
                 className="setting-slider"
               />
+            </div>
+          </div>
+
+          {/* YouTube Transcription settings */}
+          <div className="settings-section">
+            <h3><Key size={14} className="sec-icon" /> YouTube Transcription Settings</h3>
+            <div className="form-group">
+              <label className="label-icon-wrapper">
+                <Key size={12} /> AssemblyAI API Key (Optional)
+              </label>
+              <input 
+                type="password" 
+                value={assemblyApiKey}
+                onChange={(e) => setAssemblyApiKey(e.target.value)}
+                placeholder="Enter AssemblyAI API Key for high-fidelity transcribing"
+                className="setting-input"
+              />
+              <span className="input-tip">
+                Get a free key from <a href="https://www.assemblyai.com" target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>assemblyai.com</a> to bypass local limits. If blank, LAKSHYA falls back to native subtitle scraping.
+              </span>
             </div>
           </div>
         </div>

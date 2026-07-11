@@ -2,8 +2,61 @@ const llmService = require('../services/llmService');
 const chromaService = require('../services/chromaService');
 const { YoutubeTranscript } = require('youtube-transcript');
 
-// Helper to fetch and extract YouTube transcript text
-async function fetchYoutubeTranscript(urlOrId) {
+// Helper to transcribe public YouTube audio/video via AssemblyAI API
+async function transcribeWithAssemblyAI(youtubeUrl, apiKey) {
+  const submitRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+    method: 'POST',
+    headers: {
+      'authorization': apiKey,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({ audio_url: youtubeUrl })
+  });
+
+  if (!submitRes.ok) {
+    const errorBody = await submitRes.text();
+    throw new Error(`AssemblyAI submission failed: ${submitRes.status} ${submitRes.statusText} - ${errorBody}`);
+  }
+
+  const submitData = await submitRes.json();
+  const transcriptId = submitData.id;
+
+  console.log(`AssemblyAI: Transcription queued with ID ${transcriptId}. Polling status...`);
+  const pollUrl = `https://api.assemblyai.com/v2/transcript/${transcriptId}`;
+
+  // Poll every 3 seconds, up to 120 times (6 minutes max)
+  for (let i = 0; i < 120; i++) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const pollRes = await fetch(pollUrl, {
+      headers: { 'authorization': apiKey }
+    });
+
+    if (!pollRes.ok) {
+      throw new Error(`AssemblyAI status poll failed: ${pollRes.statusText}`);
+    }
+
+    const pollData = await pollRes.json();
+    if (pollData.status === 'completed') {
+      console.log(`AssemblyAI: Transcription completed successfully!`);
+      return pollData.text;
+    } else if (pollData.status === 'error') {
+      throw new Error(`AssemblyAI transcription error: ${pollData.error}`);
+    }
+    
+    console.log(`AssemblyAI: Status is currently: "${pollData.status}"...`);
+  }
+
+  throw new Error('AssemblyAI transcription timed out.');
+}
+
+// Helper to fetch and extract YouTube transcript text (supports AssemblyAI and local fallbacks)
+async function fetchYoutubeTranscript(urlOrId, apiKey = null) {
+  if (apiKey && apiKey.trim()) {
+    console.log(`YouTube API: Using AssemblyAI transcription for URL.`);
+    return await transcribeWithAssemblyAI(urlOrId, apiKey);
+  }
+
   try {
     const transcript = await YoutubeTranscript.fetchTranscript(urlOrId);
     if (!transcript || transcript.length === 0) {
@@ -190,7 +243,7 @@ Refer primarily to this document context to answer questions about the file.
         if (isYoutube) {
           console.log(`Study Mode: Fetching YouTube transcript for: ${url}`);
           try {
-            resolvedContent = await fetchYoutubeTranscript(url);
+            resolvedContent = await fetchYoutubeTranscript(url, config.assemblyApiKey);
             console.log(`Study Mode: Fetched ${resolvedContent.length} characters from YouTube transcript.`);
           } catch (ytErr) {
             console.error('Failed to fetch YouTube transcript:', ytErr);
@@ -329,7 +382,7 @@ CRITICAL RULES:
 
     try {
       console.log(`YouTube API: Extracting transcript for: ${url}`);
-      const transcriptText = await fetchYoutubeTranscript(url);
+      const transcriptText = await fetchYoutubeTranscript(url, config.assemblyApiKey);
       
       if (!summarize) {
         return res.json({ success: true, text: transcriptText });
