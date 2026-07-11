@@ -11,7 +11,9 @@ const DEFAULT_SETTINGS = {
   useExternalVoice: false,
   voiceName: 'alloy',
   voiceRate: 1.0,
-  savePdfToDb: false
+  savePdfToDb: false,
+  ytExtractionMode: 'local',
+  assemblyApiKey: ''
 };
 
 const settings = {

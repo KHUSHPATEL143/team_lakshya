@@ -54,7 +54,11 @@ async function transcribeWithAssemblyAI(youtubeUrl, apiKey) {
 async function fetchYoutubeTranscript(urlOrId, apiKey = null, extractionMode = 'local') {
   if (extractionMode === 'assembly' && apiKey && apiKey.trim()) {
     console.log(`YouTube API: Using AssemblyAI transcription for URL.`);
-    return await transcribeWithAssemblyAI(urlOrId, apiKey);
+    try {
+      return await transcribeWithAssemblyAI(urlOrId, apiKey);
+    } catch (err) {
+      console.warn(`AssemblyAI transcription failed: ${err.message}. Falling back to local subtitle scraper...`);
+    }
   }
 
   try {
