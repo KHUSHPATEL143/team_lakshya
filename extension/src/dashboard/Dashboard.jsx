@@ -38,12 +38,15 @@ export default function Dashboard() {
 
   // Study Mode state
   const [workspaceTab, setWorkspaceTab] = useState('chat'); // 'chat' or 'study'
-  const [studySource, setStudySource] = useState('webpage'); // 'webpage', 'document', 'image'
+  const [studySource, setStudySource] = useState('webpage'); // 'webpage', 'document', 'image', 'link', 'text'
   const [studyType, setStudyType] = useState('quiz'); // 'quiz', 'flashcards', 'notes', 'viva', 'interview'
   const [studyCount, setStudyCount] = useState(5);
   const [generatingStudy, setGeneratingStudy] = useState(false);
   const [studyError, setStudyError] = useState('');
   const [studyData, setStudyData] = useState(null);
+  const [studyLink, setStudyLink] = useState('');
+  const [studyText, setStudyText] = useState('');
+  const [expandedQuestions, setExpandedQuestions] = useState({});
 
   // Active quiz states
   const [quizIndex, setQuizIndex] = useState(0);
@@ -397,6 +400,7 @@ export default function Dashboard() {
     setQuizIndex(0);
     setFlashcardIndex(0);
     setFlashcardFlipped(false);
+    setExpandedQuestions({});
 
     try {
       let textContent = '';
@@ -424,10 +428,20 @@ export default function Dashboard() {
           throw new Error('No webpage or document content found. Please use Read Page Content or upload a document first.');
         }
         textContent = 'Uploaded Image Content';
+      } else if (studySource === 'text') {
+        if (!studyText || !studyText.trim()) {
+          throw new Error('Please paste some text content first.');
+        }
+        textContent = studyText;
+      } else if (studySource === 'link') {
+        if (!studyLink || !studyLink.trim()) {
+          throw new Error('Please provide a web link or notes repository URL.');
+        }
+        textContent = 'URL Fetch Mode';
       }
 
-      // Check that content has been successfully extracted
-      if ((studySource !== 'image' && (!textContent || !textContent.trim())) || (studySource === 'image' && !imageInput)) {
+      // Check that content has been successfully extracted or is URL mode
+      if (studySource !== 'link' && studySource !== 'image' && (!textContent || !textContent.trim())) {
         throw new Error('No webpage or document content found. Please use Read Page Content or upload a document first.');
       }
 
@@ -436,7 +450,8 @@ export default function Dashboard() {
         textContent,
         studyCount,
         appSettings,
-        studySource === 'image' ? imageInput : null
+        studySource === 'image' ? imageInput : null,
+        studySource === 'link' ? studyLink : null
       );
 
       setStudyData(result);
@@ -723,6 +738,8 @@ export default function Dashboard() {
                     <option value="webpage">🌐 Current Webpage</option>
                     <option value="document">📄 Active Document (PDF / CSV / Excel)</option>
                     <option value="image">📷 Uploaded Image (OCR + Vision)</option>
+                    <option value="link">🔗 Web Link / Notes Repository URL</option>
+                    <option value="text">✍️ Direct Text Paste</option>
                   </select>
                 </div>
 
@@ -751,6 +768,36 @@ export default function Dashboard() {
                       value={studyCount} 
                       onChange={(e) => setStudyCount(Math.max(2, Math.min(15, parseInt(e.target.value) || 5)))}
                       className="study-input"
+                    />
+                  </div>
+                )}
+
+                {/* Conditional Web Link / Repository URL input */}
+                {studySource === 'link' && (
+                  <div className="study-setup-group animate-fade-in" style={{ gridColumn: '1 / -1' }}>
+                    <label>Web Link / Notes Repository URL</label>
+                    <input 
+                      type="text" 
+                      placeholder="https://github.com/user/notes/blob/main/chapter1.md or any webpage link" 
+                      value={studyLink} 
+                      onChange={(e) => setStudyLink(e.target.value)}
+                      className="study-input"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                )}
+
+                {/* Conditional Text Paste textarea */}
+                {studySource === 'text' && (
+                  <div className="study-setup-group animate-fade-in" style={{ gridColumn: '1 / -1' }}>
+                    <label>Paste Notes / Study Text</label>
+                    <textarea 
+                      rows={6}
+                      placeholder="Paste or type raw notes content here (min. 100 characters recommended for high-quality quiz generation)..." 
+                      value={studyText} 
+                      onChange={(e) => setStudyText(e.target.value)}
+                      className="study-input"
+                      style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
                     />
                   </div>
                 )}

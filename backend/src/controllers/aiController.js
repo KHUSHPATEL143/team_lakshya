@@ -1,6 +1,46 @@
 const llmService = require('../services/llmService');
 const chromaService = require('../services/chromaService');
 
+// Helper to fetch and extract clean readable text from any URL (supports GitHub markdown links)
+async function fetchWebpageText(url) {
+  let targetUrl = url.trim();
+  if (targetUrl.includes('github.com') && targetUrl.includes('/blob/')) {
+    targetUrl = targetUrl
+      .replace('github.com', 'raw.githubusercontent.com')
+      .replace('/blob/', '/');
+  }
+
+  const response = await fetch(targetUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  let text = await response.text();
+
+  if (contentType.includes('html') || text.trim().startsWith('<')) {
+    // Strip script and style tags completely
+    text = text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    // Strip all HTML tags
+    text = text.replace(/<[^>]*>/g, ' ');
+    // Decode common entities and normalize whitespaces
+    text = text
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  return text;
+}
+
 const aiController = {
   // Fetch available models from selected provider
   async listModels(req, res) {
@@ -122,13 +162,29 @@ Refer primarily to this document context to answer questions about the file.
 
   // Generate structured study materials strictly from source content
   async generateStudyMaterial(req, res) {
-    const { type, content, count = 5, config = {}, image = null } = req.body;
+    const { type, content, count = 5, config = {}, image = null, url = null } = req.body;
 
-    if ((!content || !content.trim()) && !image) {
+    if ((!content || !content.trim()) && !image && (!url || !url.trim())) {
       return res.status(400).json({ error: 'No webpage or document content found. Please use Read Page Content or upload a document first.' });
     }
 
     try {
+      let resolvedContent = content || '';
+
+      if (url && url.trim()) {
+        console.log(`Study Mode: Fetching URL content for: ${url}`);
+        try {
+          resolvedContent = await fetchWebpageText(url);
+          console.log(`Study Mode: Fetched ${resolvedContent.length} characters from URL.`);
+        } catch (fetchErr) {
+          console.error('Failed to fetch URL:', fetchErr);
+          return res.status(400).json({ error: `Failed to fetch webpage/notes content from URL: ${fetchErr.message}` });
+        }
+      }
+
+      if ((!resolvedContent || !resolvedContent.trim()) && !image) {
+        return res.status(400).json({ error: 'The provided source content is empty.' });
+      }
       let prompt = '';
       if (type === 'quiz') {
         prompt = `Generate a quiz with exactly ${count} multiple-choice questions based ONLY on the supplied source text.
@@ -201,7 +257,7 @@ CRITICAL RULES:
         { role: 'user', content: image ? [
           { type: 'text', text: prompt },
           { type: 'image_url', image_url: { url: image } }
-        ] : `${prompt}\n\nSource Text:\n"""\n${content}\n"""` }
+        ] : `${prompt}\n\nSource Text:\n"""\n${resolvedContent}\n"""` }
       ];
 
       const systemPrompt = `You are a helpful study companion. You must output raw JSON only. Do not write any markdown codeblocks, notes, or preamble outside the JSON. All JSON fields must be populated based strictly on the provided source content.`;
