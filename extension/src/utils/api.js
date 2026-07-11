@@ -227,6 +227,20 @@ const api = {
       throw new Error(err.error || err.message || 'Failed to generate study material');
     }
     return res.json();
+  },
+
+  // --- YouTube video transcript extraction & summarization ---
+  async getYoutubeTranscript(url, config = {}, summarize = false) {
+    const res = await fetch(`${BACKEND_URL}/api/youtube/transcript`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, config, summarize })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || err.message || 'Failed to retrieve YouTube transcript');
+    }
+    return res.json();
   }
 };
 

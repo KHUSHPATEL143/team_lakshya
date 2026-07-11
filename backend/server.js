@@ -105,6 +105,7 @@ app.post('/api/ingest/spreadsheet', upload.single('file'), contentController.ing
 app.get('/api/models', aiController.listModels);
 app.post('/api/chat', aiController.chat);
 app.post('/api/study/generate', aiController.generateStudyMaterial);
+app.post('/api/youtube/transcript', aiController.getYoutubeTranscript);
 
 // --- Vector Operations (Direct) ---
 app.post('/api/vector/search', vectorController.search);

@@ -1,5 +1,19 @@
 const llmService = require('../services/llmService');
 const chromaService = require('../services/chromaService');
+const { YouTubeTranscript } = require('youtube-transcript');
+
+// Helper to fetch and extract YouTube transcript text
+async function fetchYoutubeTranscript(urlOrId) {
+  try {
+    const transcript = await YouTubeTranscript.fetchTranscript(urlOrId);
+    if (!transcript || transcript.length === 0) {
+      throw new Error('Transcript is empty');
+    }
+    return transcript.map(t => t.text).join(' ');
+  } catch (error) {
+    throw new Error(`Failed to retrieve YouTube transcript. Make sure the video has captions enabled. Error: ${error.message}`);
+  }
+}
 
 // Helper to fetch and extract clean readable text from any URL (supports GitHub markdown links)
 async function fetchWebpageText(url) {
@@ -172,13 +186,25 @@ Refer primarily to this document context to answer questions about the file.
       let resolvedContent = content || '';
 
       if (url && url.trim()) {
-        console.log(`Study Mode: Fetching URL content for: ${url}`);
-        try {
-          resolvedContent = await fetchWebpageText(url);
-          console.log(`Study Mode: Fetched ${resolvedContent.length} characters from URL.`);
-        } catch (fetchErr) {
-          console.error('Failed to fetch URL:', fetchErr);
-          return res.status(400).json({ error: `Failed to fetch webpage/notes content from URL: ${fetchErr.message}` });
+        const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+        if (isYoutube) {
+          console.log(`Study Mode: Fetching YouTube transcript for: ${url}`);
+          try {
+            resolvedContent = await fetchYoutubeTranscript(url);
+            console.log(`Study Mode: Fetched ${resolvedContent.length} characters from YouTube transcript.`);
+          } catch (ytErr) {
+            console.error('Failed to fetch YouTube transcript:', ytErr);
+            return res.status(400).json({ error: `Failed to retrieve YouTube video transcript: ${ytErr.message}` });
+          }
+        } else {
+          console.log(`Study Mode: Fetching URL content for: ${url}`);
+          try {
+            resolvedContent = await fetchWebpageText(url);
+            console.log(`Study Mode: Fetched ${resolvedContent.length} characters from URL.`);
+          } catch (fetchErr) {
+            console.error('Failed to fetch URL:', fetchErr);
+            return res.status(400).json({ error: `Failed to fetch webpage/notes content from URL: ${fetchErr.message}` });
+          }
         }
       }
 
@@ -290,6 +316,36 @@ CRITICAL RULES:
     } catch (error) {
       console.error('Study material generation failed:', error);
       return res.status(500).json({ error: 'Failed to generate study material: ' + error.message });
+    }
+  },
+
+  // Fetch transcript of a YouTube video and optionally summarize it
+  async getYoutubeTranscript(req, res) {
+    const { url, config = {}, summarize = false } = req.body;
+
+    if (!url || !url.trim()) {
+      return res.status(400).json({ error: 'YouTube URL is required' });
+    }
+
+    try {
+      console.log(`YouTube API: Extracting transcript for: ${url}`);
+      const transcriptText = await fetchYoutubeTranscript(url);
+      
+      if (!summarize) {
+        return res.json({ success: true, text: transcriptText });
+      }
+
+      console.log(`YouTube API: Summarizing transcript (${transcriptText.length} characters)...`);
+      const systemPrompt = `You are a helpful YouTube assistant. You must generate a clean, comprehensive summary of the YouTube video based ONLY on the provided video transcript. Use markdown bullet points and headings.`;
+      const messages = [
+        { role: 'user', content: `Please provide a detailed, well-structured summary of the following YouTube video transcript:\n\n"""\n${transcriptText}\n"""` }
+      ];
+
+      const rawResult = await llmService.getChatCompletion(messages, { ...config, systemPrompt });
+      return res.json({ success: true, text: transcriptText, summary: rawResult });
+    } catch (error) {
+      console.error('YouTube transcript retrieval/summarization failed:', error);
+      return res.status(500).json({ error: error.message });
     }
   }
 };

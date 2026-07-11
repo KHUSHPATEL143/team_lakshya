@@ -8,7 +8,7 @@ import SettingsModal from '../components/SettingsModal';
 import VoiceController from '../components/VoiceController';
 import { 
   Bot, Plus, Settings, MessageSquare, Trash2, Send, 
-  FileText, Server, AlertCircle, Sparkles, BookOpen, Camera, X, Table, Paperclip, RefreshCw
+  FileText, Server, AlertCircle, Sparkles, BookOpen, Camera, X, Table, Paperclip, RefreshCw, Video
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -405,6 +405,53 @@ export default function Dashboard() {
     });
   };
 
+  const handleYoutubeLinkAttach = async () => {
+    const youtubeUrl = prompt('Enter YouTube video URL to extract transcript & summarize:');
+    if (!youtubeUrl || !youtubeUrl.trim()) return;
+
+    setUploadingFile(true);
+    setAttachmentStatus('Extracting YouTube transcript & generating summary...');
+
+    try {
+      const result = await api.getYoutubeTranscript(youtubeUrl, appSettings, true);
+
+      if (result.success && result.text) {
+        if (activeConvId) {
+          await new Promise((resolve) => {
+            chrome.storage.local.set({
+              [`file_context_${activeConvId}`]: {
+                text: result.text,
+                title: 'YouTube Transcript'
+              }
+            }, resolve);
+          });
+        }
+
+        setActiveAttachment({
+          name: 'YouTube Video Transcript',
+          kind: 'YouTube',
+          detail: `Transcript extracted (${result.text.length} chars)`
+        });
+
+        if (result.summary && activeConvId) {
+          await api.saveMessage(activeConvId, 'user', `Summarize YouTube Video: ${youtubeUrl}`);
+          await api.saveMessage(activeConvId, 'assistant', `Here is a summary of the YouTube video based on its transcript:\n\n${result.summary}`);
+          
+          const history = await api.getConversationMessages(activeConvId);
+          setMessages(history);
+        }
+
+        setAttachmentStatus('YouTube Video attached and summarized successfully!');
+      }
+    } catch (error) {
+      console.error(error);
+      setAttachmentStatus(`Error: ${error.message || 'Failed to attach YouTube video'}`);
+    } finally {
+      setTimeout(() => setAttachmentStatus(''), 4000);
+      setUploadingFile(false);
+    }
+  };
+
   const handleGenerateStudyMaterial = async () => {
     setGeneratingStudy(true);
     setStudyError('');
@@ -452,10 +499,15 @@ export default function Dashboard() {
           throw new Error('Please provide a web link or notes repository URL.');
         }
         textContent = 'URL Fetch Mode';
+      } else if (studySource === 'youtube') {
+        if (!studyLink || !studyLink.trim()) {
+          throw new Error('Please provide a YouTube video URL.');
+        }
+        textContent = 'YouTube Video Mode';
       }
 
-      // Check that content has been successfully extracted or is URL mode
-      if (studySource !== 'link' && studySource !== 'image' && (!textContent || !textContent.trim())) {
+      // Check that content has been successfully extracted or is URL/YouTube mode
+      if (studySource !== 'link' && studySource !== 'youtube' && studySource !== 'image' && (!textContent || !textContent.trim())) {
         throw new Error('No webpage or document content found. Please use Read Page Content or upload a document first.');
       }
 
@@ -465,7 +517,7 @@ export default function Dashboard() {
         studyCount,
         appSettings,
         studySource === 'image' ? imageInput : null,
-        studySource === 'link' ? studyLink : null
+        (studySource === 'link' || studySource === 'youtube') ? studyLink : null
       );
 
       setStudyData(result);
@@ -685,6 +737,10 @@ export default function Dashboard() {
                           <Camera size={14} style={{ color: 'var(--color-accent)' }} />
                           <span>Upload Image</span>
                         </button>
+                        <button type="button" onClick={() => { handleYoutubeLinkAttach(); setAttachmentMenuOpen(false); }} style={{ border: 0, borderRadius: '10px', padding: '8px 12px', background: 'transparent', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                          <Video size={14} style={{ color: '#ff0000' }} />
+                          <span>YouTube Video Link</span>
+                        </button>
                       </div>
                     )}
 
@@ -753,6 +809,7 @@ export default function Dashboard() {
                     <option value="document">📄 Active Document (PDF / CSV / Excel)</option>
                     <option value="image">📷 Uploaded Image (OCR + Vision)</option>
                     <option value="link">🔗 Web Link / Notes Repository URL</option>
+                    <option value="youtube">📺 YouTube Video URL</option>
                     <option value="text">✍️ Direct Text Paste</option>
                   </select>
                 </div>
@@ -793,6 +850,21 @@ export default function Dashboard() {
                     <input 
                       type="text" 
                       placeholder="https://github.com/user/notes/blob/main/chapter1.md or any webpage link" 
+                      value={studyLink} 
+                      onChange={(e) => setStudyLink(e.target.value)}
+                      className="study-input"
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                )}
+
+                {/* Conditional YouTube Link URL input */}
+                {studySource === 'youtube' && (
+                  <div className="study-setup-group animate-fade-in" style={{ gridColumn: '1 / -1' }}>
+                    <label>YouTube Video URL</label>
+                    <input 
+                      type="text" 
+                      placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..." 
                       value={studyLink} 
                       onChange={(e) => setStudyLink(e.target.value)}
                       className="study-input"
