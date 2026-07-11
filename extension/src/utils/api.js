@@ -1,6 +1,6 @@
 // LAKSHYA - API Integration Layer
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 const api = {
   // Check backend server connection
