@@ -110,6 +110,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function getAssociatedLabelText(input) {
+  // 1. Check if the input itself has an aria-label
+  const ariaLabel = input.getAttribute('aria-label');
+  if (ariaLabel) return ariaLabel;
+
+  // 2. Check if the input has aria-labelledby
+  const labelledBy = input.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const ids = labelledBy.split(/\s+/);
+    for (const id of ids) {
+      if (id) {
+        const labelEl = document.getElementById(id);
+        if (labelEl && labelEl.innerText) {
+          return labelEl.innerText;
+        }
+      }
+    }
+  }
+
+  // 3. Search up parent hierarchy for any container with text or labels (Google Forms / Microsoft Forms style)
+  let parent = input.parentElement;
+  for (let i = 0; i < 5 && parent; i++) {
+    const parentAria = parent.getAttribute('aria-label') || parent.getAttribute('data-question-text');
+    if (parentAria) return parentAria;
+
+    // Look for form question title class (Google Forms uses class M7eMe)
+    const questionTitleEl = parent.querySelector('.M7eMe');
+    if (questionTitleEl && questionTitleEl.innerText) {
+      return questionTitleEl.innerText;
+    }
+
+    const labelEl = parent.querySelector('label, [role="heading"]');
+    if (labelEl && labelEl.innerText) return labelEl.innerText;
+
+    parent = parent.parentElement;
+  }
+
+  // 4. Fallback to standard labels
   if (input.id) {
     const label = document.querySelector(`label[for="${input.id}"]`);
     if (label) return label.innerText;

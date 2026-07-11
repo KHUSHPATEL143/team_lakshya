@@ -272,12 +272,18 @@ export default function Dashboard() {
         setConversations(prev => [newConv, ...prev]);
       }
 
-      // Check if user is requesting a form fill action
+      // Check if user is requesting a form fill action (more flexible keyword matching)
       const cleanText = text.toLowerCase().trim();
-      const isFormFillRequest = cleanText.includes('fill this form') || 
-                                cleanText.includes('fill the form') || 
-                                cleanText.includes('autofill') ||
-                                cleanText.includes('auto fill');
+      const isFormFillRequest = cleanText.includes('autofill') || 
+                                cleanText.includes('auto fill') ||
+                                (cleanText.includes('fill') && (
+                                  cleanText.includes('form') || 
+                                  cleanText.includes('field') || 
+                                  cleanText.includes('input') || 
+                                  cleanText.includes('detail') || 
+                                  cleanText.includes('info') || 
+                                  cleanText.includes('variable')
+                                ));
 
       if (isFormFillRequest) {
         let filledCount = 0;
