@@ -13,6 +13,7 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
   const [voiceName, setVoiceName] = useState(currentSettings.voiceName);
   const [voiceRate, setVoiceRate] = useState(currentSettings.voiceRate);
   const [assemblyApiKey, setAssemblyApiKey] = useState(currentSettings.assemblyApiKey || '');
+  const [ytExtractionMode, setYtExtractionMode] = useState(currentSettings.ytExtractionMode || 'local');
 
   const [clearingDb, setClearingDb] = useState(false);
   const [clearSuccess, setClearSuccess] = useState(false);
@@ -28,7 +29,8 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
       useExternalVoice,
       voiceName,
       voiceRate,
-      assemblyApiKey
+      assemblyApiKey,
+      ytExtractionMode
     });
     onClose();
   };
@@ -228,20 +230,35 @@ export default function SettingsModal({ currentSettings, onSave, onClose }) {
           <div className="settings-section">
             <h3><Key size={14} className="sec-icon" /> YouTube Transcription Settings</h3>
             <div className="form-group">
-              <label className="label-icon-wrapper">
-                <Key size={12} /> AssemblyAI API Key (Optional)
-              </label>
-              <input 
-                type="password" 
-                value={assemblyApiKey}
-                onChange={(e) => setAssemblyApiKey(e.target.value)}
-                placeholder="Enter AssemblyAI API Key for high-fidelity transcribing"
+              <label>Transcription Engine</label>
+              <select 
+                value={ytExtractionMode} 
+                onChange={(e) => setYtExtractionMode(e.target.value)}
                 className="setting-input"
-              />
-              <span className="input-tip">
-                Get a free key from <a href="https://www.assemblyai.com" target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>assemblyai.com</a> to bypass local limits. If blank, LAKSHYA falls back to native subtitle scraping.
-              </span>
+                style={{ marginBottom: '12px' }}
+              >
+                <option value="local">Local Caption Scraper (Fast / Free)</option>
+                <option value="assembly">AssemblyAI Audio Transcriber (Cloud / High-fidelity)</option>
+              </select>
             </div>
+
+            {ytExtractionMode === 'assembly' && (
+              <div className="form-group animate-fade-in">
+                <label className="label-icon-wrapper">
+                  <Key size={12} /> AssemblyAI API Key
+                </label>
+                <input 
+                  type="password" 
+                  value={assemblyApiKey}
+                  onChange={(e) => setAssemblyApiKey(e.target.value)}
+                  placeholder="Enter AssemblyAI API Key"
+                  className="setting-input"
+                />
+                <span className="input-tip">
+                  Get a free key from <a href="https://www.assemblyai.com" target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>assemblyai.com</a>. AssemblyAI transcribes the full audio stream. Note: public YouTube videos can sometimes be blocked by YouTube rate limits on AssemblyAI's transcribers.
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

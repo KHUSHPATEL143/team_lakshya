@@ -51,8 +51,8 @@ async function transcribeWithAssemblyAI(youtubeUrl, apiKey) {
 }
 
 // Helper to fetch and extract YouTube transcript text (supports AssemblyAI and local fallbacks)
-async function fetchYoutubeTranscript(urlOrId, apiKey = null) {
-  if (apiKey && apiKey.trim()) {
+async function fetchYoutubeTranscript(urlOrId, apiKey = null, extractionMode = 'local') {
+  if (extractionMode === 'assembly' && apiKey && apiKey.trim()) {
     console.log(`YouTube API: Using AssemblyAI transcription for URL.`);
     return await transcribeWithAssemblyAI(urlOrId, apiKey);
   }
@@ -243,7 +243,7 @@ Refer primarily to this document context to answer questions about the file.
         if (isYoutube) {
           console.log(`Study Mode: Fetching YouTube transcript for: ${url}`);
           try {
-            resolvedContent = await fetchYoutubeTranscript(url, config.assemblyApiKey);
+            resolvedContent = await fetchYoutubeTranscript(url, config.assemblyApiKey, config.ytExtractionMode);
             console.log(`Study Mode: Fetched ${resolvedContent.length} characters from YouTube transcript.`);
           } catch (ytErr) {
             console.error('Failed to fetch YouTube transcript:', ytErr);
@@ -382,7 +382,7 @@ CRITICAL RULES:
 
     try {
       console.log(`YouTube API: Extracting transcript for: ${url}`);
-      const transcriptText = await fetchYoutubeTranscript(url, config.assemblyApiKey);
+      const transcriptText = await fetchYoutubeTranscript(url, config.assemblyApiKey, config.ytExtractionMode);
       
       if (!summarize) {
         return res.json({ success: true, text: transcriptText });
