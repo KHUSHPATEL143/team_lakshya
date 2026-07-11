@@ -191,6 +191,38 @@ export default function Dashboard() {
     }
   };
 
+  // Storage helpers for file contexts (supports Web localStorage fallback)
+  const saveFileContext = async (convId, contextObj) => {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        await new Promise((resolve) => {
+          chrome.storage.local.set({ [`file_context_${convId}`]: contextObj }, resolve);
+        });
+      } else {
+        localStorage.setItem(`file_context_${convId}`, JSON.stringify(contextObj));
+      }
+    } catch (err) {
+      console.warn('Failed to save file context:', err);
+    }
+  };
+
+  const getFileContext = async (convId) => {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const stored = await new Promise((resolve) => {
+          chrome.storage.local.get(`file_context_${convId}`, resolve);
+        });
+        return stored ? stored[`file_context_${convId}`] : null;
+      } else {
+        const stored = localStorage.getItem(`file_context_${convId}`);
+        return stored ? JSON.parse(stored) : null;
+      }
+    } catch (err) {
+      console.warn('Failed to get file context:', err);
+      return null;
+    }
+  };
+
   // 5. Send chat message
   const handleSendMessage = async (textToSend) => {
     const text = textToSend || inputValue;
@@ -262,16 +294,7 @@ export default function Dashboard() {
       // Retrieve file/document context from Chrome local storage if available
       let fileContext = null;
       if (currentConvId) {
-        try {
-          const stored = await new Promise((resolve) => {
-            chrome.storage.local.get(`file_context_${currentConvId}`, resolve);
-          });
-          if (stored && stored[`file_context_${currentConvId}`]) {
-            fileContext = stored[`file_context_${currentConvId}`];
-          }
-        } catch (err) {
-          console.warn('Could not read session file context:', err);
-        }
+        fileContext = await getFileContext(currentConvId);
       }
 
       // Step C: Execute streaming chat completion
@@ -355,11 +378,7 @@ export default function Dashboard() {
       const result = await parseFile(file, appSettings, storeInDb);
 
       if (!storeInDb && result.text) {
-        await new Promise((resolve) => {
-          chrome.storage.local.set({
-            [`file_context_${targetConvId}`]: { title: file.name, text: result.text }
-          }, resolve);
-        });
+        await saveFileContext(targetConvId, { title: file.name, text: result.text });
       }
 
       const detailText = kind === 'spreadsheet'
@@ -427,13 +446,9 @@ export default function Dashboard() {
         }
 
         // Save transcript to local storage under targetConvId
-        await new Promise((resolve) => {
-          chrome.storage.local.set({
-            [`file_context_${targetConvId}`]: {
-              text: result.text,
-              title: `YouTube Video: ${youtubeUrl}`
-            }
-          }, resolve);
+        await saveFileContext(targetConvId, {
+          text: result.text,
+          title: `YouTube Video: ${youtubeUrl}`
         });
 
         setActiveAttachment({
@@ -480,11 +495,9 @@ export default function Dashboard() {
         }
       } else if (studySource === 'document') {
         if (activeConvId) {
-          const stored = await new Promise((resolve) => {
-            chrome.storage.local.get(`file_context_${activeConvId}`, resolve);
-          });
-          if (stored && stored[`file_context_${activeConvId}`]) {
-            textContent = stored[`file_context_${activeConvId}`].text;
+          const stored = await getFileContext(activeConvId);
+          if (stored) {
+            textContent = stored.text;
           }
         }
       } else if (studySource === 'image') {
