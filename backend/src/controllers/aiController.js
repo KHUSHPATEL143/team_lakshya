@@ -1,11 +1,11 @@
 const llmService = require('../services/llmService');
 const chromaService = require('../services/chromaService');
-const { YouTubeTranscript } = require('youtube-transcript');
+const { YoutubeTranscript } = require('youtube-transcript');
 
 // Helper to fetch and extract YouTube transcript text
 async function fetchYoutubeTranscript(urlOrId) {
   try {
-    const transcript = await YouTubeTranscript.fetchTranscript(urlOrId);
+    const transcript = await YoutubeTranscript.fetchTranscript(urlOrId);
     if (!transcript || transcript.length === 0) {
       throw new Error('Transcript is empty');
     }
