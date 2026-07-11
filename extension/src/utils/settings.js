@@ -35,7 +35,11 @@ const settings = {
         for (const key of Object.keys(DEFAULT_SETTINGS)) {
           const val = localStorage.getItem(`lakshya_setting_${key}`);
           if (val !== null) {
-            local[key] = val === 'true' ? true : val === 'false' ? false : val;
+            try {
+              local[key] = JSON.parse(val);
+            } catch {
+              local[key] = val === 'true' ? true : val === 'false' ? false : val;
+            }
           }
         }
         resolve({ ...DEFAULT_SETTINGS, ...local });
@@ -51,7 +55,7 @@ const settings = {
           resolve(true);
         });
       } else {
-        localStorage.setItem(`lakshya_setting_${key}`, value);
+        localStorage.setItem(`lakshya_setting_${key}`, JSON.stringify(value));
         resolve(true);
       }
     });
@@ -66,7 +70,7 @@ const settings = {
         });
       } else {
         for (const [key, value] of Object.entries(settingsObj)) {
-          localStorage.setItem(`lakshya_setting_${key}`, value);
+          localStorage.setItem(`lakshya_setting_${key}`, JSON.stringify(value));
         }
         resolve(true);
       }
