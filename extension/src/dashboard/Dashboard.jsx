@@ -410,38 +410,41 @@ export default function Dashboard() {
     if (!youtubeUrl || !youtubeUrl.trim()) return;
 
     setUploadingFile(true);
-    setAttachmentStatus('Extracting YouTube transcript & generating summary...');
+    setAttachmentStatus('Extracting YouTube transcript...');
 
     try {
-      const result = await api.getYoutubeTranscript(youtubeUrl, appSettings, true);
+      // Fetch the transcript (we will generate a summary inside the normal chat bubble context on first send)
+      const result = await api.getYoutubeTranscript(youtubeUrl, appSettings, false);
 
       if (result.success && result.text) {
-        if (activeConvId) {
-          await new Promise((resolve) => {
-            chrome.storage.local.set({
-              [`file_context_${activeConvId}`]: {
-                text: result.text,
-                title: 'YouTube Transcript'
-              }
-            }, resolve);
-          });
+        let targetConvId = activeConvId;
+        if (!targetConvId) {
+          const newConv = await api.createConversation(`YouTube Video Context`, appSettings?.model);
+          targetConvId = newConv.id;
+          setActiveConvId(targetConvId);
+          setConversations(prev => [newConv, ...prev]);
+          setMessages([]);
         }
+
+        // Save transcript to local storage under targetConvId
+        await new Promise((resolve) => {
+          chrome.storage.local.set({
+            [`file_context_${targetConvId}`]: {
+              text: result.text,
+              title: `YouTube Video: ${youtubeUrl}`
+            }
+          }, resolve);
+        });
 
         setActiveAttachment({
           name: 'YouTube Video Transcript',
           kind: 'YouTube',
-          detail: `Transcript extracted (${result.text.length} chars)`
+          detail: `${result.text.length} characters`
         });
 
-        if (result.summary && activeConvId) {
-          await api.saveMessage(activeConvId, 'user', `Summarize YouTube Video: ${youtubeUrl}`);
-          await api.saveMessage(activeConvId, 'assistant', `Here is a summary of the YouTube video based on its transcript:\n\n${result.summary}`);
-          
-          const history = await api.getConversationMessages(activeConvId);
-          setMessages(history);
-        }
-
-        setAttachmentStatus('YouTube Video attached and summarized successfully!');
+        await loadConversations(appSettings);
+        setInputValue(current => current || `Summarize this YouTube video transcript.`);
+        setAttachmentStatus('YouTube Video transcript loaded');
       }
     } catch (error) {
       console.error(error);
@@ -672,7 +675,7 @@ export default function Dashboard() {
                 {/* Active File Attachment Pill */}
                 {activeAttachment && (
                   <div className="sp-active-attachment" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '8px', width: 'fit-content' }}>
-                    {activeAttachment.kind === 'PDF' ? <FileText size={14} style={{ color: 'var(--color-primary)' }} /> : <Table size={14} style={{ color: 'var(--color-secondary)' }} />}
+                    {activeAttachment.kind === 'PDF' ? <FileText size={14} style={{ color: 'var(--color-primary)' }} /> : activeAttachment.kind === 'YouTube' ? <Video size={14} style={{ color: '#ff0000' }} /> : <Table size={14} style={{ color: 'var(--color-secondary)' }} />}
                     <div style={{ display: 'flex', flexDirection: 'column', fontSize: '11px', textAlign: 'left' }}>
                       <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>{activeAttachment.name}</strong>
                       <span style={{ color: 'var(--text-secondary)' }}>{activeAttachment.kind} loaded · {activeAttachment.detail}</span>
