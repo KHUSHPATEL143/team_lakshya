@@ -205,6 +205,22 @@ const api = {
     }
   },
 
+  // --- Non-streaming Chat Response (Accumulates chunks into string) ---
+  async chat(messages, config = {}, activeTabContext = null, fileContext = null, image = null) {
+    let resultText = '';
+    await this.chatStream(
+      messages,
+      config,
+      activeTabContext,
+      fileContext,
+      image,
+      (chunk) => { resultText += chunk; },
+      () => {},
+      (err) => { throw err; }
+    );
+    return resultText;
+  },
+
   // --- Vector store ---
   async clearVectorDb() {
     const res = await fetch(`${BACKEND_URL}/api/vector/clear`, {

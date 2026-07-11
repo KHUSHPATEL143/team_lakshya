@@ -294,17 +294,70 @@ export default function Dashboard() {
               chrome.tabs.query({ active: true, currentWindow: true }, resolve);
             });
             if (tab && tab.id) {
-              const response = await new Promise((resolve) => {
-                chrome.tabs.sendMessage(tab.id, {
-                  type: 'FILL_FORM',
-                  profile: appSettings?.formProfile || []
-                }, (res) => {
+              // 1. Fetch form fields from the active tab
+              const getFieldsResponse = await new Promise((resolve) => {
+                chrome.tabs.sendMessage(tab.id, { type: 'GET_FORM_FIELDS' }, (res) => {
                   if (chrome.runtime.lastError) resolve(null);
                   else resolve(res);
                 });
               });
-              if (response && response.success) {
-                filledCount = response.filledCount;
+
+              if (getFieldsResponse && getFieldsResponse.success && getFieldsResponse.fields.length > 0) {
+                // 2. Query the LLM to map conversation context + profile details to these fields
+                const systemPrompt = `You are LAKSHYA's intelligent Form Filler. You are given:
+1. A list of form fields on the active webpage.
+2. The user's profile details: ${JSON.stringify(appSettings?.formProfile || [])}.
+3. The conversation history which contains context (resumes, generated skills lists, summary notes, education, certifications, etc.).
+
+Your task is to populate the form fields. 
+- Match standard inputs (name, email, phone, roll number) using the user's profile.
+- Match open/rich inputs (summary, description, skills, education, certifications, address) by extracting or summarizing the relevant info generated in our chat history.
+- Respond ONLY with a valid JSON object mapping the field index (as a string) to the value. Do not include markdown codeblocks or any extra text.
+Example:
+{
+  "0": "Khush Patel",
+  "1": "React, HTML, CSS",
+  "2": "108645"
+}`;
+                
+                const fillRequestPrompt = `Here is the list of form fields on the active page: ${JSON.stringify(getFieldsResponse.fields)}. Please map values for these field indices based on our conversation context.`;
+                const messagesForLlm = [
+                  ...messages.map(m => ({ role: m.role, content: m.content })),
+                  { role: 'user', content: fillRequestPrompt }
+                ];
+
+                const llmReply = await api.chat(messagesForLlm, { ...appSettings, systemPrompt });
+                
+                let valuesMap = {};
+                try {
+                  let cleanJson = llmReply.trim();
+                  if (cleanJson.startsWith('```')) {
+                    cleanJson = cleanJson.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '');
+                  }
+                  valuesMap = JSON.parse(cleanJson.trim());
+                } catch (jsonErr) {
+                  console.error('Failed to parse form filler JSON:', jsonErr, llmReply);
+                  const match = llmReply.match(/\{[\s\S]*\}/);
+                  if (match) {
+                    valuesMap = JSON.parse(match[0]);
+                  }
+                }
+
+                // 3. Command the content script to fill these index-mapped inputs
+                if (Object.keys(valuesMap).length > 0) {
+                  const fillResponse = await new Promise((resolve) => {
+                    chrome.tabs.sendMessage(tab.id, {
+                      type: 'FILL_FORM_VALUES',
+                      values: valuesMap
+                    }, (res) => {
+                      if (chrome.runtime.lastError) resolve(null);
+                      else resolve(res);
+                    });
+                  });
+                  if (fillResponse && fillResponse.success) {
+                    filledCount = fillResponse.filledCount;
+                  }
+                }
               }
             }
           }
@@ -321,9 +374,9 @@ export default function Dashboard() {
         if (errorOccurred || typeof chrome === 'undefined' || !chrome.tabs) {
           responseText = `⚠️ I was unable to access the active tab. Please make sure LAKSHYA is running inside the Chrome Extension sidepanel and you have active page permissions.`;
         } else if (filledCount > 0) {
-          responseText = `⚡ **Auto-fill complete!** I scanned the active webpage form elements and successfully filled out **${filledCount}** field(s) using your custom variables profile (such as \`rollNo = 108\`).`;
+          responseText = `⚡ **Auto-fill complete!** I scanned the active webpage form elements and successfully filled out **${filledCount}** field(s) using your profile and conversation context (including skills, descriptions, and roll number).`;
         } else {
-          responseText = `🔍 I scanned the active webpage form elements but could not find any input fields matching the keys in your profile (e.g. name, email, rollNo). You can add custom keys under **Settings** to match this form!`;
+          responseText = `🔍 I scanned the active webpage form elements but could not match or find values for the form fields in our profile or chat history context.`;
         }
 
         const aiMsg = await api.saveMessage(currentConvId, 'assistant', responseText);

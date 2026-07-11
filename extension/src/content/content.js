@@ -107,6 +107,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, error: error.message });
     }
   }
+
+  else if (message.type === 'GET_FORM_FIELDS') {
+    try {
+      const inputs = document.querySelectorAll('input, select, textarea');
+      const fields = [];
+
+      inputs.forEach((input, index) => {
+        if (input.type === 'hidden' || input.disabled || input.readOnly) return;
+
+        const nameAttr = input.getAttribute('name') || '';
+        const idAttr = input.getAttribute('id') || '';
+        const placeholderAttr = input.getAttribute('placeholder') || '';
+        const labelText = getAssociatedLabelText(input);
+
+        fields.push({
+          index,
+          id: idAttr,
+          name: nameAttr,
+          placeholder: placeholderAttr,
+          labelText: labelText,
+          type: input.tagName.toLowerCase() === 'textarea' ? 'textarea' : input.type || 'text'
+        });
+      });
+
+      sendResponse({ success: true, fields });
+    } catch (error) {
+      sendResponse({ success: false, error: error.message });
+    }
+  }
+
+  else if (message.type === 'FILL_FORM_VALUES') {
+    try {
+      const fieldValues = message.values || {};
+      const inputs = document.querySelectorAll('input, select, textarea');
+      let filledCount = 0;
+
+      for (const [indexStr, val] of Object.entries(fieldValues)) {
+        const index = parseInt(indexStr);
+        const input = inputs[index];
+        if (input && input.type !== 'hidden' && !input.disabled && !input.readOnly) {
+          input.value = val;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('blur', { bubbles: true }));
+          filledCount++;
+        }
+      }
+
+      sendResponse({ success: true, filledCount });
+    } catch (error) {
+      sendResponse({ success: false, error: error.message });
+    }
+  }
   
   return true; // Keep channel open for async responses
 });
