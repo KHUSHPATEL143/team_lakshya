@@ -57,6 +57,20 @@ export default function Dashboard() {
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
 
+  // Safe Study Mode helper selectors
+  const questionsArray = studyData && Array.isArray(studyData.questions) ? studyData.questions : [];
+  const flashcardsArray = studyData ? (Array.isArray(studyData) ? studyData : (studyData.flashcards && Array.isArray(studyData.flashcards) ? studyData.flashcards : (studyData.cards && Array.isArray(studyData.cards) ? studyData.cards : []))) : [];
+  const vivaQuestionsArray = studyData && Array.isArray(studyData.questions) ? studyData.questions : [];
+  
+  const isStudyDataEmpty = () => {
+    if (!studyData) return true;
+    if (studyType === 'quiz' && questionsArray.length === 0) return true;
+    if (studyType === 'flashcards' && flashcardsArray.length === 0) return true;
+    if (studyType === 'notes' && !studyData.summary && (!studyData.keyPoints || !Array.isArray(studyData.keyPoints))) return true;
+    if (['viva', 'interview'].includes(studyType) && vivaQuestionsArray.length === 0) return true;
+    return false;
+  };
+
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -833,11 +847,24 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Empty/Invalid Output Fallback Alert */}
+            {studyData && isStudyDataEmpty() && (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '12px', padding: '16px', color: '#ef4444', marginTop: '16px', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                  <AlertCircle size={18} />
+                  <span>Study Material Generation Error</span>
+                </div>
+                <p style={{ fontSize: '13.5px', margin: '8px 0 0 0', lineHeight: '1.5' }}>
+                  The AI model returned an empty response or an incompatible data structure. This can happen with very short source texts or model rate limits. Please try clicking "Generate Study Material" again, or try selecting a different source.
+                </p>
+              </div>
+            )}
+
             {/* Quiz Render */}
-            {studyData && studyType === 'quiz' && studyData.questions && (
+            {studyData && studyType === 'quiz' && !isStudyDataEmpty() && (
               <div className="quiz-container">
                 {studyData.limitedInfoNotice && (
-                  <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', border: '1px solid #f59e0b', color: '#f59e0b', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', border: '1px solid #f59e0b', color: '#f59e0b', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                     <AlertCircle size={14} />
                     <span>{studyData.limitedInfoNotice}</span>
                   </div>
@@ -848,7 +875,7 @@ export default function Dashboard() {
                     <Sparkles size={48} style={{ color: 'var(--color-primary)' }} />
                     <h3 style={{ fontSize: '22px', fontWeight: 'bold' }}>Quiz Completed!</h3>
                     <p style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>
-                      You answered <strong>{quizScore}</strong> out of <strong>{studyData.questions.length}</strong> questions correctly.
+                      You answered <strong>{quizScore}</strong> out of <strong>{questionsArray.length}</strong> questions correctly.
                     </p>
                     <button 
                       onClick={() => { setQuizScore(null); setQuizSelections({}); setQuizIndex(0); }} 
@@ -862,22 +889,22 @@ export default function Dashboard() {
                   <div className="quiz-question-box">
                     <div className="quiz-header">
                       <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                        QUESTION {quizIndex + 1} OF {studyData.questions.length}
+                        QUESTION {quizIndex + 1} OF {questionsArray.length}
                       </span>
                       <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-primary)' }}>
-                        Score: {Object.values(quizSelections).filter((sel, i) => sel === studyData.questions[i].answer).length}
+                        Score: {Object.values(quizSelections).filter((sel, i) => sel === questionsArray[i]?.answer).length}
                       </span>
                     </div>
 
                     <h3 style={{ fontSize: '16px', fontWeight: '700', lineHeight: '1.5' }}>
-                      {studyData.questions[quizIndex].question}
+                      {questionsArray[quizIndex]?.question}
                     </h3>
 
                     <div className="quiz-options-list">
-                      {studyData.questions[quizIndex].options.map((option, idx) => {
+                      {(questionsArray[quizIndex]?.options || []).map((option, idx) => {
                         const isSelected = quizSelections[quizIndex] !== undefined;
                         const selectedVal = quizSelections[quizIndex];
-                        const isCorrect = option === studyData.questions[quizIndex].answer;
+                        const isCorrect = option === questionsArray[quizIndex]?.answer;
                         const isUserSelection = option === selectedVal;
 
                         let btnClass = 'quiz-option-btn';
@@ -904,7 +931,7 @@ export default function Dashboard() {
                     {quizSelections[quizIndex] !== undefined && (
                       <div className="quiz-explanation-box animate-fade-in">
                         <strong>Explanation:</strong>
-                        <p style={{ margin: '4px 0 0 0' }}>{studyData.questions[quizIndex].explanation}</p>
+                        <p style={{ margin: '4px 0 0 0' }}>{questionsArray[quizIndex]?.explanation}</p>
                       </div>
                     )}
 
@@ -912,11 +939,11 @@ export default function Dashboard() {
                       {quizSelections[quizIndex] !== undefined && (
                         <button
                           onClick={() => {
-                            if (quizIndex < studyData.questions.length - 1) {
+                            if (quizIndex < questionsArray.length - 1) {
                               setQuizIndex(prev => prev + 1);
                             } else {
                               const correctCount = Object.keys(quizSelections).reduce((acc, idx) => {
-                                return acc + (quizSelections[idx] === studyData.questions[idx].answer ? 1 : 0);
+                                return acc + (quizSelections[idx] === questionsArray[idx]?.answer ? 1 : 0);
                               }, 0);
                               setQuizScore(correctCount);
                             }
@@ -924,7 +951,7 @@ export default function Dashboard() {
                           className="generate-study-btn"
                           style={{ width: 'fit-content' }}
                         >
-                          {quizIndex < studyData.questions.length - 1 ? 'Next Question' : 'View Results'}
+                          {quizIndex < questionsArray.length - 1 ? 'Next Question' : 'View Results'}
                         </button>
                       )}
                     </div>
@@ -934,7 +961,7 @@ export default function Dashboard() {
             )}
 
             {/* Flashcard Render */}
-            {studyData && studyType === 'flashcards' && Array.isArray(studyData) && (
+            {studyData && studyType === 'flashcards' && !isStudyDataEmpty() && (
               <div className="flashcard-deck">
                 <div 
                   className={`flashcard-container ${flashcardFlipped ? 'flipped' : ''}`}
@@ -943,12 +970,12 @@ export default function Dashboard() {
                   <div className="flashcard-inner">
                     <div className="flashcard-front">
                       <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Concept</span>
-                      <h3>{studyData[flashcardIndex].front}</h3>
+                      <h3>{flashcardsArray[flashcardIndex]?.front}</h3>
                       <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '24px' }}>Click card to flip and reveal details</span>
                     </div>
                     <div className="flashcard-back">
                       <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Explanation</span>
-                      <p>{studyData[flashcardIndex].back}</p>
+                      <p>{flashcardsArray[flashcardIndex]?.back}</p>
                       <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '24px' }}>Click card to flip back</span>
                     </div>
                   </div>
@@ -964,10 +991,10 @@ export default function Dashboard() {
                     ←
                   </button>
                   <span style={{ fontSize: '13px', fontWeight: '600' }}>
-                    {flashcardIndex + 1} OF {studyData.length}
+                    {flashcardIndex + 1} OF {flashcardsArray.length}
                   </span>
                   <button 
-                    disabled={flashcardIndex === studyData.length - 1} 
+                    disabled={flashcardIndex === flashcardsArray.length - 1} 
                     onClick={() => { setFlashcardIndex(prev => prev + 1); setFlashcardFlipped(false); }}
                     className="flashcard-btn"
                     title="Next card"
@@ -979,7 +1006,7 @@ export default function Dashboard() {
             )}
 
             {/* Notes / Summary Render */}
-            {studyData && studyType === 'notes' && (
+            {studyData && studyType === 'notes' && !isStudyDataEmpty() && (
               <div className="notes-container animate-fade-in">
                 {studyData.summary && (
                   <div className="notes-section">
@@ -1016,7 +1043,7 @@ export default function Dashboard() {
             )}
 
             {/* Viva & Interview Questions Render */}
-            {studyData && ['viva', 'interview'].includes(studyType) && studyData.questions && (
+            {studyData && ['viva', 'interview'].includes(studyType) && !isStudyDataEmpty() && (
               <div className="notes-container animate-fade-in">
                 {studyData.limitedInfoNotice && (
                   <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', border: '1px solid #f59e0b', color: '#f59e0b', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1028,7 +1055,7 @@ export default function Dashboard() {
                 <div className="notes-section">
                   <h3 style={{ textTransform: 'capitalize' }}>{studyType} Questions Prep</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                    {studyData.questions.map((q, idx) => {
+                    {vivaQuestionsArray.map((q, idx) => {
                       const isExpanded = !!expandedQuestions[idx];
                       return (
                         <div 
